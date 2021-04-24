@@ -1,5 +1,6 @@
 # Boids-ECS-hecomi
  Refactored [hecomi's Boids Simulation](http://tips.hecomi.com/entry/2018/12/23/200817) on current DOTS environment.
+ [hecomi's implementation](https://github.com/hecomi/UnityECSBoidSimulation) is [Licensed under CC BY 4.0.](http://creativecommons.org/licenses/by/4.0/)
 
 ## Environment
 - Unity 2020.3.4f
