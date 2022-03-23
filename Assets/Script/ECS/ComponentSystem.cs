@@ -13,7 +13,7 @@ public class BoidSystemGroup : ComponentSystemGroup { }
 
 
 [UpdateInGroup(typeof(BoidSystemGroup))]
-public class WallSystem : SystemBase
+public partial class WallSystem : SystemBase
 {
     private struct ComputeWallForce
     {
@@ -84,7 +84,7 @@ public class WallSystem : SystemBase
 
 
 [UpdateAfter(typeof(BoidSystemGroup))]
-public class MoveSystem : SystemBase
+public partial class MoveSystem : SystemBase
 {
     protected override void OnUpdate()
     {
@@ -115,7 +115,7 @@ public class MoveSystem : SystemBase
 }
 
 [UpdateBefore(typeof(BoidSystemGroup))]
-public class NeighborDetectionSystem : SystemBase
+public partial class NeighborDetectionSystem : SystemBase
 {
     private EntityQuery query;
 
@@ -197,7 +197,7 @@ public class NeighborDetectionSystem : SystemBase
 
 
 [UpdateInGroup(typeof(BoidSystemGroup))]
-public class SeparationSystem : SystemBase
+public partial class SeparationSystem : SystemBase
 {
     private struct SeparationDataContainer
     {
@@ -238,7 +238,7 @@ public class SeparationSystem : SystemBase
 
 
 [UpdateInGroup(typeof(BoidSystemGroup))]
-public class AlignmentSystem : SystemBase
+public partial class AlignmentSystem : SystemBase
 {
     private struct AlignmentDataContiner
     {
@@ -278,7 +278,7 @@ public class AlignmentSystem : SystemBase
 
 
 [UpdateInGroup(typeof(BoidSystemGroup))]
-public class CohesionSystem : SystemBase
+public partial class CohesionSystem : SystemBase
 {
     private struct CohesionDataContainer
     {
