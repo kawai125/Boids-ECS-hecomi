@@ -29,6 +29,10 @@ public class CameraMover : MonoBehaviour
     [SerializeField, Range(30.0f, 150.0f)]
     private float _mouseSensitive = 90.0f;
 
+    //スクロール感度
+    [SerializeField, Range(1.0f, 10.0f)]
+    private float _scrolSensitive = 2.5f;
+
     [SerializeField]
     private GameObject _cameraLocal;
 
@@ -160,7 +164,7 @@ public class CameraMover : MonoBehaviour
     private void CameraDollyInOut()
     {
         float scroll = Input.GetAxis("Mouse ScrollWheel");
-        _cameraLocal.transform.position += transform.forward * scroll;
+        _cameraLocal.transform.position += transform.forward * scroll * _scrolSensitive;
     }
 
     //UIメッセージの表示

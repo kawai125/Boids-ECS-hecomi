@@ -962,6 +962,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 1
   m_VolumeTrigger: {fileID: 0}
+  m_VolumeFrameworkUpdateModeOption: 2
   m_RenderPostProcessing: 0
   m_Antialiasing: 0
   m_AntialiasingQuality: 2
@@ -1565,9 +1566,8 @@ MonoBehaviour:
   param: {fileID: 11400000, guid: d6ef2ff2eb52fd1498c1cde95d58b4a0, type: 2}
   boidCount: 100
   inputBoidNumField: {fileID: 1089972486}
-  inputBoidNumText: {fileID: 450204631}
   inputScaleField: {fileID: 517990213}
-  inputScaleText: {fileID: 990168365}
+  applyButton: {fileID: 1166973771}
 --- !u!4 &1593996027
 Transform:
   m_ObjectHideFlags: 0

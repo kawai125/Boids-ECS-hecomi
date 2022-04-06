@@ -1,0 +1,16 @@
+{
+    "name": "Boids.Mono",
+    "rootNamespace": "",
+    "references": [
+        "GUID:22ea3cd2dfefd96469eac769c2200cf5"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

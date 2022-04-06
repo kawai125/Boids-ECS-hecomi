@@ -12,14 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 30cbfbf356d73fe48800cc67cdb26193, type: 3}
   m_Name: Param
   m_EditorClassIdentifier: 
-  initSpeed: 4
-  minSpeed: 4
-  maxSpeed: 8
-  neighborDistance: 3.5
-  neighborFov: 80
-  separationWeight: 15
-  wallScale: 10
-  wallDistance: 4
-  wallWeight: 2
+  initSpeed: 2
+  minSpeed: 2
+  maxSpeed: 6
+  neighborDistance: 1.2
+  neighborFov: 90
   alignmentWeight: 2
+  separationWeight: 8
   cohesionWeight: 3
+  wallScale: 25
+  wallDistance: 2
+  wallWeight: 1
+  cellIndexRangeCoef: 2.5
