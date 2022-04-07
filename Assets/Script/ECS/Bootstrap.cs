@@ -12,6 +12,10 @@ public class Bootstrap : MonoBehaviour
     public static Bootstrap Instance { get; private set; }
     public static Param Param {  get { return Instance.param; } }
 
+    public static float WallScale { get; private set; }
+    public static float NeighborSearchRange { get; private set; }
+    public static float NeighborSearchAngle { get; private set; }
+
     //[SerializeField] Vector3 boidScale = new Vector3(1.0f, 1.0f, 1.0f);
     [SerializeField] private float boidScale = 1.0f;
     [SerializeField] private Param param;
@@ -20,7 +24,8 @@ public class Bootstrap : MonoBehaviour
     private Entity prefab_entity;
 
     // UI interface
-    [SerializeField] UI_controller ui_input;
+    [SerializeField]
+    private UI_controller ui_input;
 
     private int n_boid;
 
@@ -37,6 +42,11 @@ public class Bootstrap : MonoBehaviour
 
     public void Start()
     {
+        //--- initialize dynamic parameters
+        WallScale = Define.InitialWallScale;
+        NeighborSearchRange = Define.InitialNeighborSearchRange;
+        NeighborSearchAngle = Define.InitialNeighborSearchAngle;
+
         //--- setup managers
         var world = World.DefaultGameObjectInjectionWorld;
         entity_manager = world.EntityManager;
@@ -81,7 +91,7 @@ public class Bootstrap : MonoBehaviour
         
     }
 
-    public int GetBoidsCount() { return n_boid; }
+    public static int BoidsCount { get { return Instance.n_boid; } }
 
     void UpdateBoidNum(int n_tgt)
     {
@@ -89,32 +99,29 @@ public class Bootstrap : MonoBehaviour
 
         int n_diff = n_tgt - n_boid;
 
-        if (n_diff > 0)
-        {
-            Debug.Log($"update boids num: add {n_diff} boids.");
-        }
-        if (n_diff < 0)
-        {
-            int n_delete = -n_diff;
-            Debug.Log($"update boids num: remove {n_delete} boids.");
-        }
+        if (n_diff == 0) return;
 
-        if(n_diff != 0)
+        var trigger = entity_manager.Instantiate(_triggerForBoidsSpawner);
+        var spawner = new BoidsSpawner
         {
-            var trigger = entity_manager.Instantiate(_triggerForBoidsSpawner);
-            entity_manager.SetComponentData(trigger,
-                                            new BoidsSpawner { Prefab = prefab_entity,
-                                                               n = n_diff,
-                                                               scale = boidScale,
-                                                               initSpeed = param.initSpeed });
-        }
-
-        n_boid = n_tgt;
+            Prefab = prefab_entity,
+            n = n_diff,
+            scale = boidScale,
+            initSpeed = param.initSpeed
+        };
+        entity_manager.SetComponentData(trigger, spawner);
+    }
+    public static void UpdateBoidNumComplete(BoidsSpawner spawner)
+    {
+        Instance.n_boid += spawner.n;
     }
 
     void Update()
     {
         UpdateBoidNum(ui_input.boidCount);
+        WallScale = ui_input.cageScale;
+        NeighborSearchRange = ui_input.searchRange;
+        NeighborSearchAngle = ui_input.searchAngle;
     }
 
     public void SwitchComputeNeighborsPlan(ComputeNeighborsPlan old_plan, ComputeNeighborsPlan new_plan)
@@ -128,12 +135,5 @@ public class Bootstrap : MonoBehaviour
             AddTarget = new_plan,
         };
         entity_manager.SetComponentData(trigger, swapper);
-    }
-
-    void OnDrawGizmos()
-    {
-        if (!param) return;
-        Gizmos.color = Color.green;
-        Gizmos.DrawWireCube(Vector3.zero, Vector3.one * param.wallScale);
     }
 }

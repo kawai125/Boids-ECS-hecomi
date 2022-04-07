@@ -12,31 +12,42 @@ using Domain;
 
 public class CellIndex_Bootstrap : MonoBehaviour
 {
-    public static CellIndex_Bootstrap Instance { get; private set; }
-
-    public HashCellIndex<Entity> HashCellIndex;
-    public NativeList<Entity> EscapedEntities;
-
-    public float RangeCoef;
-
-    public int NumberOfContainsCells { get; private set; }
-    public int CellBatchSize { get; private set; }
-
-    private NativeList<PosIndex> _containsIndexList;
-    private Dictionary<string, JobHandle> _handles;
-    private bool _allocated;
-
+    private static CellIndex_Bootstrap Instance;
     private void Awake()
     {
         Instance = this;
     }
 
+    public static HashCellIndex<Entity> HashCellIndex { get { return Instance._cellIndex; } }
+
+    public static float RangeCoef {
+        get { return Instance._range_coef; }
+        set { Instance._range_coef = value; }
+    }
+    public static int NumberOfContainsCells { get { return Instance._num_contains_cells; } }
+    public static int CellBatchSize { get { return Instance._cell_batch_size; } }
+    public static float MapBufferUsed
+    {
+        get { return Instance._map_buffer_used; }
+        set { Instance._map_buffer_used = value; }
+    }
+
+    private HashCellIndex<Entity> _cellIndex;
+    private NativeList<PosIndex> _containsIndexList;
+
+    private float _range_coef;
+    private int _num_contains_cells;
+    private int _cell_batch_size;
+    private float _map_buffer_used;
+
+    private Dictionary<string, JobHandle> _handles;
+    private bool _allocated;
+
     // Start is called before the first frame update
     void Start()
     {
-        HashCellIndex = new HashCellIndex<Entity>(Allocator.Persistent);
-        EscapedEntities = new NativeList<Entity>(Allocator.Persistent);
-        RangeCoef = Bootstrap.Param.cellIndexRangeCoef;
+        _cellIndex = new HashCellIndex<Entity>(Allocator.Persistent);
+        _range_coef = Define.InitialCellIndexRangeCoef;
 
         _containsIndexList = new NativeList<PosIndex>(Allocator.Persistent);
 
@@ -59,8 +70,7 @@ public class CellIndex_Bootstrap : MonoBehaviour
         {
             foreach(var handle in _handles.Values) handle.Complete();
 
-            HashCellIndex.Dispose();
-            EscapedEntities.Dispose();
+            _cellIndex.Dispose();
 
             _containsIndexList.Dispose();
 
@@ -68,33 +78,36 @@ public class CellIndex_Bootstrap : MonoBehaviour
         }
     }
 
-    public void InitDomain(int n_boids)
+    public static void InitDomain(int n_boids) => Instance.InitDomainImpl(n_boids);
+    private void InitDomainImpl(int n_boids)
     {
-        float wall_scale_for_cell_index = Bootstrap.Param.wallScale * 0.5f + 1f;  // add margin 1.0f for box
-        HashCellIndex.Clear();
-        HashCellIndex.InitDomainWithRange(new Box(new float3(-(wall_scale_for_cell_index)),
-                                                  new float3( (wall_scale_for_cell_index))),
-                                          n_boids,
-                                          Bootstrap.Param.neighborDistance * RangeCoef);
+        float wall_scale_for_cell_index = Bootstrap.WallScale * 0.5f + 1f;  // add margin 1.0f for box
+        _cellIndex.Clear();
+        _cellIndex.InitDomainWithRange(new Box(new float3(-(wall_scale_for_cell_index)),
+                                               new float3( (wall_scale_for_cell_index))),
+                                       n_boids,
+                                       Bootstrap.NeighborSearchRange * _range_coef);
     }
-    public void UpdateBatchSize()
+    public static void UpdateBatchSize() => Instance.UpdateBatchSizeImpl();
+    private void UpdateBatchSizeImpl()
     {
-        HashCellIndex.GetContainsIndexList(_containsIndexList);
-        NumberOfContainsCells = _containsIndexList.Length;
+        _cellIndex.GetContainsIndexList(_containsIndexList);
+        _num_contains_cells = _containsIndexList.Length;
 
         //--- grid size based
-    //    var grid = HashCellIndex.GridSize;
-    //    int n_cell = grid.ix * grid.iy * grid.iz;
-    //    CellBatchSize = math.max(1, (int)math.pow(n_cell, 1f / 3));
+        //    var grid = _cellIndex.GridSize;
+        //    int n_cell = grid.ix * grid.iy * grid.iz;
+        //    _cell_batch_size = math.max(1, (int)math.pow(n_cell, 1f / 3));
 
         //--- number of significant cells based
-    //    CellBatchSize = math.max(1, (int)math.pow(NumberOfContainsCells, 0.34f));
+        //    _cell_batch_size = math.max(1, (int)math.pow(_num_contains_cells, 0.34f));
 
         //--- number of worker thread based
-        const int n_pack = 6;
-        CellBatchSize = math.max(1, NumberOfContainsCells / (n_pack * JobsUtility.JobWorkerCount));
+        const int n_pack = 8;
+        _cell_batch_size = math.max(1, _num_contains_cells / (n_pack * JobsUtility.JobWorkerCount));
     }
-    public void SetJobHandle(string job_identifier, JobHandle handle)
+    public static void SetJobHandle(string job_identifier, JobHandle handle) => Instance.SetJobHandleImpl(job_identifier, handle);
+    private void SetJobHandleImpl(string job_identifier, JobHandle handle)
     {
         if (_handles.ContainsKey(job_identifier))
         {

@@ -55,12 +55,7 @@ public class Simulation : MonoBehaviour
         {
             RemoveBoid();
         }
-    }
 
-    void OnDrawGizmos()
-    {
-        if (!param) return;
-        Gizmos.color = Color.green;
-        Gizmos.DrawWireCube(Vector3.zero, Vector3.one * param.wallScale);
+        StaticParam.WallScale = ui_input.cageScale;
     }
 }

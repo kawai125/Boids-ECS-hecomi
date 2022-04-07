@@ -104,6 +104,14 @@ namespace Domain
             index_list.Clear();
             _info.Target->GetGridIndexListImpl(index_list);
         }
+        /*
+        // cannot use for counting species of keys
+        // (remarks: A key with N values is included N times in the array)
+        public NativeArray<PosIndex> GetContainsIndexList(Allocator alloc)
+        {
+            return _map.GetKeyArray(alloc);
+        }
+        */
         public unsafe void GetContainsIndexList(NativeList<PosIndex> index_list)
         {
             index_list.Clear();

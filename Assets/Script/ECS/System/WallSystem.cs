@@ -18,7 +18,7 @@ public partial class WallSystem : SystemBase
 
         public void SetParam([ReadOnly] Param param)
         {
-            scale = param.wallScale * 0.5f;
+            scale = Bootstrap.WallScale * 0.5f;
             thresh = param.wallDistance;
             weight = param.wallWeight;
         }

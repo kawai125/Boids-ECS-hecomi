@@ -16,20 +16,23 @@ public class CageView : MonoBehaviour
 
     List<GameObject> cubeList_ = new List<GameObject>();
 
-    // Start is called before the first frame update
-    void Start()
+
+    public void Init()
     {
+        if(cubeList_.Count > 0)
+        {
+            foreach(var obj in cubeList_) Destroy(obj);
+            cubeList_.Clear();
+        }
         for(int i=0; i<12; i++)
         {
             cubeList_.Add(Instantiate(cubePrefab));
         }
-
-        UpdateScale();
     }
 
-    public void UpdateScale()
+    public void UpdateScale(float scale)
     {
-        float wallScale = param.wallScale;
+        float wallScale = scale;
         float cageWidth = wallScale * cageWidthCoef;
         Vector3 xCageSize = new Vector3(wallScale, cageWidth, cageWidth);
         Vector3 yCageSize = new Vector3(cageWidth, wallScale, cageWidth);

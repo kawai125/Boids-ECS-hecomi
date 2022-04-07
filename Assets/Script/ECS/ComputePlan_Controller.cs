@@ -49,7 +49,7 @@ public class ComputePlan_Controller : MonoBehaviour
         _dropdownComputePlan.AddOptions(drop_menu);
         _dropdownComputePlan.value = 0;
 
-        _inputFieldRangeCoef.text = Bootstrap.Param.cellIndexRangeCoef.ToString();
+        _inputFieldRangeCoef.text = Define.InitialCellIndexRangeCoef.ToString();
 
 
         _dropdownComputePlan.onValueChanged.AddListener(OnValueChangedDropdownComputePlan);
@@ -66,19 +66,19 @@ public class ComputePlan_Controller : MonoBehaviour
         }
         else
         {
-            _textGridSize.text = CellIndex_Bootstrap.Instance.HashCellIndex.GridSize.ToString();
+            _textGridSize.text = CellIndex_Bootstrap.HashCellIndex.GridSize.ToString();
         }
 
         if (_current_plan == ComputeNeighborsPlan.Direct ||
             _current_plan == ComputeNeighborsPlan.CellIndex_Entity_NeighborList)
         {
-            _textBatchSize.text = "none";
-            _textNumberOfTargetCells.text = "none";
+            _textBatchSize.text = "by entity";
+            _textNumberOfTargetCells.text = "by entity";
         }
         else
         {
-            _textBatchSize.text = CellIndex_Bootstrap.Instance.CellBatchSize.ToString();
-            _textNumberOfTargetCells.text = CellIndex_Bootstrap.Instance.NumberOfContainsCells.ToString();
+            _textBatchSize.text = CellIndex_Bootstrap.CellBatchSize.ToString();
+            _textNumberOfTargetCells.text = CellIndex_Bootstrap.NumberOfContainsCells.ToString();
         }
     }
 
@@ -93,14 +93,14 @@ public class ComputePlan_Controller : MonoBehaviour
         if (!float.TryParse(str, out float range_coef))
         {
             //--- fail to parse
-            _inputFieldRangeCoef.text = CellIndex_Bootstrap.Instance.RangeCoef.ToString();
+            _inputFieldRangeCoef.text = CellIndex_Bootstrap.RangeCoef.ToString();
             return;
         }
 
         range_coef = math.min(range_coef, maxRangeCoef);
         range_coef = math.max(range_coef, minRangeCoef);
 
-        CellIndex_Bootstrap.Instance.RangeCoef = range_coef;
+        CellIndex_Bootstrap.RangeCoef = range_coef;
         _inputFieldRangeCoef.text = range_coef.ToString();
     }
 }

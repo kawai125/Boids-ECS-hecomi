@@ -35,8 +35,8 @@ public class Boid : MonoBehaviour
 
         if (!simulation) return;
 
-        var prodThresh = Mathf.Cos(param.neighborFov * Mathf.Deg2Rad);
-        var distThresh = param.neighborDistance;
+        var prodThresh = Mathf.Cos(StaticParam.NeighborSearchAngle * Mathf.Deg2Rad);
+        var distThresh = StaticParam.NeighborSearchRange;
 
         foreach (var other in simulation.boids)
         {
@@ -61,7 +61,7 @@ public class Boid : MonoBehaviour
     {
         if (!simulation) return;
 
-        var scale = param.wallScale * 0.5f;
+        var scale = StaticParam.WallScale * 0.5f;
         accel +=
             CalcAccelAgainstWall(-scale - pos.x, Vector3.right) +
             CalcAccelAgainstWall(-scale - pos.y, Vector3.up) +

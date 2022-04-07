@@ -41,23 +41,23 @@ public partial class NeighborDetectionSystem_Direct : SystemBase
         [ReadOnly] public float distThresh;
 
         [ReadOnly]
-        public ComponentDataFromEntity<Translation> positionFromGrovalEntity;
+        public ComponentDataFromEntity<Translation> positionFromGrobalEntity;
 
         [DeallocateOnJobCompletion]
         [ReadOnly]
-        public NativeArray<Entity> entitiesGroval;
+        public NativeArray<Entity> entitiesGrobal;
     }
 
     protected override void OnUpdate()
     {
         var common_data = new NeighborDetectionDataContainer
         {
-            prodThresh = math.cos(math.radians(Bootstrap.Param.neighborFov)),
-            distThresh = Bootstrap.Param.neighborDistance,
+            prodThresh = math.cos(math.radians(Bootstrap.NeighborSearchAngle)),
+            distThresh = Bootstrap.NeighborSearchRange,
 
-            positionFromGrovalEntity = GetComponentDataFromEntity<Translation>(true),
+            positionFromGrobalEntity = GetComponentDataFromEntity<Translation>(true),
 
-            entitiesGroval = query.ToEntityArray(Allocator.TempJob),
+            entitiesGrobal = query.ToEntityArray(Allocator.TempJob),
         };
 
         // args for Entities.ForEach() must be ordered as (Entity), (ref args), and (in args).
@@ -74,12 +74,12 @@ public partial class NeighborDetectionSystem_Direct : SystemBase
             float3 fwd0 = math.normalize(velocity.Value);
 
             float r2_search = common_data.distThresh * common_data.distThresh;
-            for (int i = 0; i < common_data.entitiesGroval.Length; i++)
+            for (int i = 0; i < common_data.entitiesGrobal.Length; i++)
             {
-                var target = common_data.entitiesGroval[i];
+                var target = common_data.entitiesGrobal[i];
                 if (entity == target) continue;
 
-                float3 pos1 = common_data.positionFromGrovalEntity[target].Value;
+                float3 pos1 = common_data.positionFromGrobalEntity[target].Value;
                 var to = pos1 - pos0;
                 var dist2 = math.lengthsq(to);
 
@@ -105,8 +105,8 @@ public partial class BuildCellIndexSystetm : SystemBase
         Dependency.Complete();
 
         //--- update cell index
-        var cellIndex = CellIndex_Bootstrap.Instance.HashCellIndex;
-        CellIndex_Bootstrap.Instance.InitDomain(Bootstrap.Instance.GetBoidsCount());
+        var cellIndex = CellIndex_Bootstrap.HashCellIndex;
+        CellIndex_Bootstrap.InitDomain(Bootstrap.BoidsCount);
 
         var cellIndexWriter = cellIndex.AsParallelWriter();
         Dependency = Entities.
@@ -120,11 +120,11 @@ public partial class BuildCellIndexSystetm : SystemBase
                 cellIndexWriter.TryAdd(pos.Value, entity);
             }).ScheduleParallel(Dependency);
 
-        CellIndex_Bootstrap.Instance.SetJobHandle("BuildCellIndexSystetm", Dependency);
+        CellIndex_Bootstrap.SetJobHandle(this.GetType().Name, Dependency);
 
         Dependency.Complete();
 
-        CellIndex_Bootstrap.Instance.UpdateBatchSize();
+        CellIndex_Bootstrap.UpdateBatchSize();
     }
 }
 
@@ -138,7 +138,7 @@ public partial class NeighborDetectionSystem_CellIndex_Entity_NeighborList : Sys
         [ReadOnly] public float distThresh;
 
         [ReadOnly]
-        public ComponentDataFromEntity<Translation> positionFromGrovalEntity;
+        public ComponentDataFromEntity<Translation> positionFromGrobalEntity;
 
         [ReadOnly]
         public HashCellIndex<Entity> cellIndex;
@@ -156,12 +156,12 @@ public partial class NeighborDetectionSystem_CellIndex_Entity_NeighborList : Sys
         //--- search neighbors
         var common_data = new NeighborDetectionDataContainer
         {
-            prodThresh = math.cos(math.radians(Bootstrap.Param.neighborFov)),
-            distThresh = Bootstrap.Param.neighborDistance,
+            prodThresh = math.cos(math.radians(Bootstrap.NeighborSearchAngle)),
+            distThresh = Bootstrap.NeighborSearchRange,
 
-            positionFromGrovalEntity = GetComponentDataFromEntity<Translation>(true),
+            positionFromGrobalEntity = GetComponentDataFromEntity<Translation>(true),
 
-            cellIndex = CellIndex_Bootstrap.Instance.HashCellIndex,
+            cellIndex = CellIndex_Bootstrap.HashCellIndex,
         };
         Dependency = Entities.
             WithName("NeighborDetectionJob_CellIndex_Entity_NeighborList").
@@ -180,7 +180,7 @@ public partial class NeighborDetectionSystem_CellIndex_Entity_NeighborList : Sys
             var entitiesForSearch = new NativeList<Entity>(32, Allocator.Temp);
             common_data.GetNeighborList(pos0, entitiesForSearch);
 
-            var positionsForSearch = ComponentDataUtility.GatherComponentData(common_data.positionFromGrovalEntity,
+            var positionsForSearch = ComponentDataUtility.GatherComponentData(common_data.positionFromGrobalEntity,
                                                                               entitiesForSearch, Allocator.Temp);
 
             NeighborDetectionFunc.SearchNeighbors(entity,
@@ -197,13 +197,15 @@ public partial class NeighborDetectionSystem_CellIndex_Entity_NeighborList : Sys
 
         }).ScheduleParallel(Dependency);
 
-        CellIndex_Bootstrap.Instance.SetJobHandle("NeighborDetectionSystem_CellIndex_Entity_NeighborList", Dependency);
+        CellIndex_Bootstrap.SetJobHandle(this.GetType().Name, Dependency);
     }
 }
 
 [UpdateInGroup(typeof(NeighborDetectionSystemGroup))]
 public partial class NeighborDetectionSystem_CellIndex_Cell_NeighborList : SystemBase
 {
+    private NativeList<PosIndex> cell_list;
+
     protected override void OnCreate()
     {
         base.OnCreate();
@@ -212,19 +214,28 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_NeighborList : Syste
             GetEntityQuery(typeof(BoidType),
                            typeof(Translation),
                            typeof(Velocity),
+                           typeof(NeighborsEntityBuffer),
                            typeof(Tag_ComputeNeighbors_CellIndex_Cell_NeighborList)));
+
+        cell_list = new NativeList<PosIndex>(Allocator.Persistent);
+    }
+    protected override void OnDestroy()
+    {
+        base.OnDestroy();
+
+        cell_list.Dispose();
     }
 
-    [BurstCompile]
+    //[BurstCompile]
     private struct NeighborDetectionJob_Cell_NeighborList : IJobParallelFor
     {
         [ReadOnly] public float prodThresh;
         [ReadOnly] public float distThresh;
 
         [ReadOnly]
-        public ComponentDataFromEntity<Translation> positionFromGrovalEntity;
+        public ComponentDataFromEntity<Translation> positionFromGrobalEntity;
         [ReadOnly]
-        public ComponentDataFromEntity<Velocity> velocityFromGrovalEntity;
+        public ComponentDataFromEntity<Velocity> velocityFromGrobalEntity;
 
         [ReadOnly]
         public HashCellIndex<Entity> cellIndex;
@@ -252,11 +263,11 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_NeighborList : Syste
             cellIndex.GetNeighborList(index, distThresh, Boundary.Open, entitiesForSearch);
 
             //--- gather data in cell
-            var positionsInCell = ComponentDataUtility.GatherComponentData(positionFromGrovalEntity, entitiesInCell, Allocator.Temp);
-            var velocitiesInCell = ComponentDataUtility.GatherComponentData(velocityFromGrovalEntity, entitiesInCell, Allocator.Temp);
+            var positionsInCell = ComponentDataUtility.GatherComponentData(positionFromGrobalEntity, entitiesInCell, Allocator.Temp);
+            var velocitiesInCell = ComponentDataUtility.GatherComponentData(velocityFromGrobalEntity, entitiesInCell, Allocator.Temp);
 
             //--- gather data for search
-            var positionsForSearch = ComponentDataUtility.GatherComponentData(positionFromGrovalEntity, entitiesForSearch, Allocator.Temp);
+            var positionsForSearch = ComponentDataUtility.GatherComponentData(positionFromGrobalEntity, entitiesForSearch, Allocator.Temp);
 
             //--- search neighbors by cell to neighbors from cellIndex
             for (int i_entity = 0; i_entity < entitiesInCell.Length; i_entity++)
@@ -284,19 +295,17 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_NeighborList : Syste
 
     protected override void OnUpdate()
     {
-
         //--- search neighbors
-        var cellIndex = CellIndex_Bootstrap.Instance.HashCellIndex;
-        var cell_list = new NativeList<PosIndex>(Allocator.TempJob);
+        var cellIndex = CellIndex_Bootstrap.HashCellIndex;
         cellIndex.GetContainsIndexList(cell_list);
 
         var neighborDetectionJob = new NeighborDetectionJob_Cell_NeighborList()
         {
-            prodThresh = math.cos(math.radians(Bootstrap.Param.neighborFov)),
-            distThresh = Bootstrap.Param.neighborDistance,
+            prodThresh = math.cos(math.radians(Bootstrap.NeighborSearchAngle)),
+            distThresh = Bootstrap.NeighborSearchRange,
 
-            positionFromGrovalEntity = GetComponentDataFromEntity<Translation>(true),
-            velocityFromGrovalEntity = GetComponentDataFromEntity<Velocity>(true),
+            positionFromGrobalEntity = GetComponentDataFromEntity<Translation>(true),
+            velocityFromGrobalEntity = GetComponentDataFromEntity<Velocity>(true),
 
             cellIndex = cellIndex,
             cellList = cell_list,
@@ -304,18 +313,18 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_NeighborList : Syste
             neighborsFromGrobalEntity = GetBufferFromEntity<NeighborsEntityBuffer>(),
         };
         Dependency = neighborDetectionJob.Schedule(cell_list.Length,
-                                                   CellIndex_Bootstrap.Instance.CellBatchSize,
+                                                   CellIndex_Bootstrap.CellBatchSize,
                                                    Dependency);
 
-        cell_list.Dispose(Dependency);
-
-        CellIndex_Bootstrap.Instance.SetJobHandle("NeighborDetectionSystem_CellIndex_Cell_NeighborList", Dependency);
+        CellIndex_Bootstrap.SetJobHandle(this.GetType().Name, Dependency);
     }
 }
 
 [UpdateInGroup(typeof(NeighborDetectionSystemGroup))]
 public partial class NeighborDetectionSystem_CellIndex_Cell_Cell : SystemBase
 {
+    private NativeList<PosIndex> cell_list;
+
     protected override void OnCreate()
     {
         base.OnCreate();
@@ -324,7 +333,16 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_Cell : SystemBase
             GetEntityQuery(typeof(BoidType),
                            typeof(Translation),
                            typeof(Velocity),
+                           typeof(NeighborsEntityBuffer),
                            typeof(Tag_ComputeNeighbors_CellIndex_Cell_Cell)));
+
+        cell_list = new NativeList<PosIndex>(Allocator.Persistent);
+    }
+    protected override void OnDestroy()
+    {
+        base.OnDestroy();
+
+        cell_list.Dispose();
     }
 
     [BurstCompile]
@@ -334,9 +352,9 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_Cell : SystemBase
         [ReadOnly] public float distThresh;
 
         [ReadOnly]
-        public ComponentDataFromEntity<Translation> positionFromGrovalEntity;
+        public ComponentDataFromEntity<Translation> positionFromGrobalEntity;
         [ReadOnly]
-        public ComponentDataFromEntity<Velocity> velocityFromGrovalEntity;
+        public ComponentDataFromEntity<Velocity> velocityFromGrobalEntity;
 
         [ReadOnly]
         public HashCellIndex<Entity> cellIndex;
@@ -360,20 +378,18 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_Cell : SystemBase
                 return;
             }
 
+            for(int j = 0; j < entitiesInCell.Length; j++)
+            {
+                neighborsFromGrobalEntity[entitiesInCell[j]].Clear();
+            }
+
             var searchIndexList = new NativeList<PosIndex>(64, Allocator.Temp);
             var entitiesForSearch = new NativeList<Entity>(64, Allocator.Temp);
             var positionsForSearch = new NativeList<Translation>(64, Allocator.Temp);
 
             //--- gather data in cell
-            var positionsInCell = ComponentDataUtility.GatherComponentData(positionFromGrovalEntity, entitiesInCell, Allocator.Temp);
-            var velocitysInCell = ComponentDataUtility.GatherComponentData(velocityFromGrovalEntity, entitiesInCell, Allocator.Temp);
-
-            //--- clear neighbors
-            for(int i = 0; i < entitiesInCell.Length; i++)
-            {
-                var entity = entitiesInCell[i];
-                neighborsFromGrobalEntity[entity].Clear();
-            }
+            var positionsInCell = ComponentDataUtility.GatherComponentData(positionFromGrobalEntity, entitiesInCell, Allocator.Temp);
+            var velocitysInCell = ComponentDataUtility.GatherComponentData(velocityFromGrobalEntity, entitiesInCell, Allocator.Temp);
 
             //--- search neighbors by cell to cell
             cellIndex.GetSearchIndexList(index, distThresh, Boundary.Open, searchIndexList);
@@ -386,7 +402,7 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_Cell : SystemBase
                 positionsForSearch.ResizeUninitialized(entitiesForSearch.Length);
                 for(int i=0; i<entitiesForSearch.Length; i++)
                 {
-                    positionsForSearch[i] = positionFromGrovalEntity[entitiesForSearch[i]];
+                    positionsForSearch[i] = positionFromGrobalEntity[entitiesForSearch[i]];
                 }
 
                 //--- detect neighbors
@@ -416,17 +432,16 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_Cell : SystemBase
     protected override void OnUpdate()
     {
         //--- search neighbors
-        var cellIndex = CellIndex_Bootstrap.Instance.HashCellIndex;
-        var cell_list = new NativeList<PosIndex>(Allocator.TempJob);
+        var cellIndex = CellIndex_Bootstrap.HashCellIndex;
         cellIndex.GetContainsIndexList(cell_list);
 
         var neighborDetectionJob = new NeighborDetectionJob_Cell_Cell()
         {
-            prodThresh = math.cos(math.radians(Bootstrap.Param.neighborFov)),
-            distThresh = Bootstrap.Param.neighborDistance,
+            prodThresh = math.cos(math.radians(Bootstrap.NeighborSearchAngle)),
+            distThresh = Bootstrap.NeighborSearchRange,
 
-            positionFromGrovalEntity = GetComponentDataFromEntity<Translation>(true),
-            velocityFromGrovalEntity = GetComponentDataFromEntity<Velocity>(true),
+            positionFromGrobalEntity = GetComponentDataFromEntity<Translation>(true),
+            velocityFromGrobalEntity = GetComponentDataFromEntity<Velocity>(true),
 
             cellIndex = cellIndex,
             cellList = cell_list,
@@ -434,18 +449,18 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_Cell : SystemBase
             neighborsFromGrobalEntity = GetBufferFromEntity<NeighborsEntityBuffer>(),
         };
         Dependency = neighborDetectionJob.Schedule(cell_list.Length,
-                                                   CellIndex_Bootstrap.Instance.CellBatchSize,
+                                                   CellIndex_Bootstrap.CellBatchSize,
                                                    Dependency);
 
-        cell_list.Dispose(Dependency);
-
-        CellIndex_Bootstrap.Instance.SetJobHandle("NeighborDetectionSystem_CellIndex_Cell_Cell", Dependency);
+        CellIndex_Bootstrap.SetJobHandle(this.GetType().Name, Dependency);
     }
 }
 
 [UpdateInGroup(typeof(NeighborDetectionSystemGroup))]
 public partial class NeighborDetectionSystem_CellIndex_Combined : SystemBase
 {
+    private NativeList<PosIndex> cell_list;
+
     protected override void OnCreate()
     {
         base.OnCreate();
@@ -456,6 +471,14 @@ public partial class NeighborDetectionSystem_CellIndex_Combined : SystemBase
                            typeof(Velocity),
                            typeof(Acceleration),
                            typeof(Tag_ComputeNeighbors_CellIndex_Combined)));
+
+        cell_list = new NativeList<PosIndex>(Allocator.Persistent);
+    }
+    protected override void OnDestroy()
+    {
+        base.OnDestroy();
+
+        cell_list.Dispose();
     }
 
     [BurstCompile]
@@ -469,9 +492,9 @@ public partial class NeighborDetectionSystem_CellIndex_Combined : SystemBase
         [ReadOnly] public float separationWeight;
 
         [ReadOnly]
-        public ComponentDataFromEntity<Translation> positionFromGrovalEntity;
+        public ComponentDataFromEntity<Translation> positionFromGrobalEntity;
         [ReadOnly]
-        public ComponentDataFromEntity<Velocity> velocityFromGrovalEntity;
+        public ComponentDataFromEntity<Velocity> velocityFromGrobalEntity;
 
         [ReadOnly]
         public HashCellIndex<Entity> cellIndex;
@@ -486,6 +509,14 @@ public partial class NeighborDetectionSystem_CellIndex_Combined : SystemBase
         {
             public float3 Alignment, Cohesion, Separation;
             public int Count;
+
+            public void Clear()
+            {
+                Alignment = 0f;
+                Cohesion = 0f;
+                Separation = 0f;
+                Count = 0;
+            }
 
             public float3 GetAccel(Translation pos0, Velocity vel0,
                                    float alignmentWeight,
@@ -521,8 +552,8 @@ public partial class NeighborDetectionSystem_CellIndex_Combined : SystemBase
             var velocitiesForSearch = new NativeList<Velocity>(64, Allocator.Temp);
 
             //--- gather data in cell
-            var positionsInCell = ComponentDataUtility.GatherComponentData(positionFromGrovalEntity, entitiesInCell, Allocator.Temp);
-            var velocitiesInCell = ComponentDataUtility.GatherComponentData(velocityFromGrovalEntity, entitiesInCell, Allocator.Temp);
+            var positionsInCell = ComponentDataUtility.GatherComponentData(positionFromGrobalEntity, entitiesInCell, Allocator.Temp);
+            var velocitiesInCell = ComponentDataUtility.GatherComponentData(velocityFromGrobalEntity, entitiesInCell, Allocator.Temp);
 
             var tmpForceInCell = new NativeArray<TmpForceValue>(entitiesInCell.Length, Allocator.Temp);
 
@@ -541,8 +572,8 @@ public partial class NeighborDetectionSystem_CellIndex_Combined : SystemBase
                 for (int i_entity=0; i_entity < entitiesForSearch.Length; i_entity++)
                 {
                     var entity = entitiesForSearch[i_entity];
-                    positionsForSearch[i_entity] = positionFromGrovalEntity[entity];
-                    velocitiesForSearch[i_entity] = velocityFromGrovalEntity[entity];
+                    positionsForSearch[i_entity] = positionFromGrobalEntity[entity];
+                    velocitiesForSearch[i_entity] = velocityFromGrobalEntity[entity];
                 }
 
                 //--- compute interaction with neighbors
@@ -627,21 +658,20 @@ public partial class NeighborDetectionSystem_CellIndex_Combined : SystemBase
     {
 
         //--- search neighbors
-        var cellIndex = CellIndex_Bootstrap.Instance.HashCellIndex;
-        var cell_list = new NativeList<PosIndex>(Allocator.TempJob);
+        var cellIndex = CellIndex_Bootstrap.HashCellIndex;
         cellIndex.GetContainsIndexList(cell_list);
 
         var computeInteractionJob = new NeighborDetectionJob_Combined()
         {
-            prodThresh = math.cos(math.radians(Bootstrap.Param.neighborFov)),
-            distThresh = Bootstrap.Param.neighborDistance,
+            prodThresh = math.cos(math.radians(Bootstrap.NeighborSearchAngle)),
+            distThresh = Bootstrap.NeighborSearchRange,
 
             alignmentWeight = Bootstrap.Param.alignmentWeight,
             cohesionWeight = Bootstrap.Param.cohesionWeight,
             separationWeight = Bootstrap.Param.separationWeight,
 
-            positionFromGrovalEntity = GetComponentDataFromEntity<Translation>(true),
-            velocityFromGrovalEntity = GetComponentDataFromEntity<Velocity>(true),
+            positionFromGrobalEntity = GetComponentDataFromEntity<Translation>(true),
+            velocityFromGrobalEntity = GetComponentDataFromEntity<Velocity>(true),
 
             cellIndex = cellIndex,
             cellList = cell_list,
@@ -650,11 +680,10 @@ public partial class NeighborDetectionSystem_CellIndex_Combined : SystemBase
         };
 
         Dependency = computeInteractionJob.Schedule(cell_list.Length,
-                                                    CellIndex_Bootstrap.Instance.CellBatchSize,
+                                                    CellIndex_Bootstrap.CellBatchSize,
                                                     Dependency);
-        cell_list.Dispose(Dependency);
 
-        CellIndex_Bootstrap.Instance.SetJobHandle("NeighborDetectionSystem_CellIndex_Combined", Dependency);
+        CellIndex_Bootstrap.SetJobHandle(this.GetType().Name, Dependency);
     }
 }
 
@@ -683,34 +712,6 @@ static internal class NeighborDetectionFunc
                 if (prod > prodThresh)
                 {
                     neighbors.Add(new NeighborsEntityBuffer { entity = target });
-                }
-            }
-        }
-    }
-    internal static void SearchNeighbors(Entity entity, float3 pos0, float3 fwd0,
-                                         float distThresh, float prodThresh,
-                                         NativeArray<Entity> neighborsFromCell,
-                                         NativeArray<Translation> positionsForSearch,
-                                         int sort_key,
-                                         EntityCommandBuffer.ParallelWriter ecb)
-    {
-        float r2_search = distThresh * distThresh;
-        for (int i = 0; i < neighborsFromCell.Length; i++)
-        {
-            var neighbor = neighborsFromCell[i];
-            if (entity == neighbor) continue;
-
-            float3 pos1 = positionsForSearch[i].Value;
-            var to = pos1 - pos0;
-            var dist2 = math.lengthsq(to);
-
-            if (dist2 < r2_search)
-            {
-                var dir = math.normalize(to);
-                var prod = math.dot(dir, fwd0);
-                if (prod > prodThresh)
-                {
-                    ecb.AppendToBuffer(sort_key, entity, new NeighborsEntityBuffer { entity = neighbor});
                 }
             }
         }

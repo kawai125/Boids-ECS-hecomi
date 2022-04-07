@@ -12,19 +12,42 @@ public class UI_controller : MonoBehaviour
     [SerializeField]
     private Param param;
 
-    public int boidCount = 100;
+    public int boidCount = Define.InitialBoidsNum;
+    public float cageScale = Define.InitialWallScale;
 
     [SerializeField]
-    public InputField inputBoidNumField;
+    private InputField inputBoidNumField;
     [SerializeField]
-    public InputField inputScaleField;
+    private InputField inputScaleField;
     [SerializeField]
     private Button applyButton;
+
+    public float searchRange, searchAngle;
+
+    [SerializeField]
+    private InputField inputSearchRange;
+    [SerializeField]
+    private InputField inputSearchAngle;
 
     // Start is called before the first frame update
     void Start()
     {
+        cageView.Init();
+        cageView.UpdateScale(cageScale);
 
+        searchRange = Define.InitialNeighborSearchRange;
+        searchAngle = Define.InitialNeighborSearchAngle;
+
+        if (inputSearchRange != null)
+        {
+            inputSearchRange.text = Define.InitialNeighborSearchRange.ToString();
+            inputSearchRange.onEndEdit.AddListener(UpdateSearchRange);
+        }
+        if (inputSearchAngle != null)
+        {
+            inputSearchAngle.text = Define.InitialNeighborSearchAngle.ToString();
+            inputSearchAngle.onEndEdit.AddListener(UpdateSearchAngle);
+        }
     }
 
     public void OnClick()
@@ -43,13 +66,50 @@ public class UI_controller : MonoBehaviour
 
         //--- input scale
         float.TryParse(inputScaleField.text, out float new_scale);
-        if (new_scale > 0.0f)
+        if (new_scale > 5f)
         {
-            param.wallScale = new_scale;
-            cageView.UpdateScale();
+            cageScale = new_scale;
+            cageView.UpdateScale(cageScale);
         }
     }
+    public void UpdateSearchRange(string str)
+    {
+        if(float.TryParse(str, out float r_search))
+        {
+            if(0.5f < r_search && r_search < 15f)
+            {
+                searchRange = r_search;
+                return;
+            }
+        }
 
+        inputSearchRange.text = searchRange.ToString();
+    }
+    public void UpdateSearchAngle(string str)
+    {
+        if (float.TryParse(str, out float angle))
+        {
+            if (1f < angle && angle <= 180f)
+            {
+                searchAngle = angle;
+                return;
+            }
+        }
+
+        inputSearchAngle.text = searchAngle.ToString();
+    }
+
+    // for benchmark
+    public void UpdateByScript(int n_boid, float cage_scale)
+    {
+        if (n_boid <= 0 || cage_scale <= 5f) return;
+
+        boidCount = n_boid;
+        inputBoidNumField.text = boidCount.ToString();
+
+        cageScale = cage_scale;
+        inputScaleField.text = cageScale.ToString();
+    }
     public void EnableManualControl(bool enable)
     {
         if (enable)

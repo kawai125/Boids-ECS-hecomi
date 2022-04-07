@@ -34,9 +34,11 @@ public partial class SpawnerAndRemoveSystem : SystemBase
 
     protected override void OnUpdate()
     {
+        Dependency.Complete();
 
         Entities.
             WithStructuralChanges().
+            WithoutBurst().
             ForEach(
             (Entity trigger, in BoidsSpawner spawner) =>
             {
@@ -44,6 +46,8 @@ public partial class SpawnerAndRemoveSystem : SystemBase
 
                 if(spawner.n > 0)
                 {
+                    UnityEngine.Debug.Log($"update boids num: add {spawner.n} boids.");
+
                     var spawnedEntities = new NativeArray<Entity>(spawner.n, Allocator.Temp);
                     EntityManager.Instantiate(spawner.Prefab, spawnedEntities);
 
@@ -62,10 +66,16 @@ public partial class SpawnerAndRemoveSystem : SystemBase
                 }
                 else if(spawner.n < 0)
                 {
+                    int n_delete = -spawner.n;
+                    UnityEngine.Debug.Log($"update boids num: remove {n_delete} boids.");
+
                     var entities = _boids_query.ToEntityArray(Allocator.Temp);
-                    EntityManager.DestroyEntity(new NativeSlice<Entity>(entities, 0, math.abs(spawner.n)));
+                    EntityManager.DestroyEntity(new NativeSlice<Entity>(entities, 0, math.abs(n_delete)));
                     entities.Dispose();
                 }
+
+                //--- report spawner complete
+                Bootstrap.UpdateBoidNumComplete(spawner);
 
                 //--- delete trigger
                 EntityManager.DestroyEntity(trigger);
