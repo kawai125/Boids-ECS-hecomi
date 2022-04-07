@@ -58,16 +58,16 @@ public class UI_controller : MonoBehaviour
     public void UpdateCondition()
     {
         //--- input # of Boids
-        Int32.TryParse(inputBoidNumField.text, out int n_input);
-        if (n_input >= 0)
+        if(Int32.TryParse(inputBoidNumField.text, out int n_input))
         {
-            this.boidCount = n_input;
+            n_input = Math.Max(n_input, 0);
+            boidCount = n_input;
         }
 
         //--- input scale
-        float.TryParse(inputScaleField.text, out float new_scale);
-        if (new_scale >= 5f)
+        if(float.TryParse(inputScaleField.text, out float new_scale))
         {
+            new_scale = Math.Max(new_scale, 4f);
             cageScale = new_scale;
             cageView.UpdateScale(cageScale);
         }
@@ -76,39 +76,35 @@ public class UI_controller : MonoBehaviour
     {
         if(float.TryParse(str, out float r_search))
         {
-            if(0.2f <= r_search && r_search < 15f)
-            {
-                searchRange = r_search;
-                return;
-            }
+            r_search = Math.Max(r_search, 0.2f);
+            r_search = Math.Min(r_search, 15f);
+            searchRange = r_search;
         }
-
         inputSearchRange.text = searchRange.ToString();
     }
     public void UpdateSearchAngle(string str)
     {
         if (float.TryParse(str, out float angle))
         {
-            if (1f <= angle && angle <= 180f)
-            {
-                searchAngle = angle;
-                return;
-            }
+            angle = Math.Max(angle, 1f);
+            angle = Math.Min(angle, 180f);
+            searchAngle = angle;
         }
-
         inputSearchAngle.text = searchAngle.ToString();
     }
 
     // for benchmark
     public void UpdateByScript(int n_boid, float cage_scale)
     {
-        if (n_boid <= 0 || cage_scale <= 5f) return;
+        n_boid = Math.Max(n_boid, 0);
+        cageScale = Math.Max(cageScale, 5f);
 
         boidCount = n_boid;
         inputBoidNumField.text = boidCount.ToString();
 
         cageScale = cage_scale;
         inputScaleField.text = cageScale.ToString();
+        cageView.UpdateScale(cageScale);
     }
     public void EnableManualControl(bool enable)
     {

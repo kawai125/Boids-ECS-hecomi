@@ -51,11 +51,13 @@ public partial class SpawnerAndRemoveSystem : SystemBase
                     var spawnedEntities = new NativeArray<Entity>(spawner.n, Allocator.Temp);
                     EntityManager.Instantiate(spawner.Prefab, spawnedEntities);
 
+                    float spawn_area = Bootstrap.WallScale * 0.4f;
+
                     for (int i = 0; i < spawner.n; i++)
                     {
                         var entity = spawnedEntities[i];
 
-                        EntityManager.SetComponentData(entity, new Translation { Value = _random.NextFloat3(1f) });
+                        EntityManager.SetComponentData(entity, new Translation { Value = _random.NextFloat3(-spawn_area, spawn_area) });
                         EntityManager.SetComponentData(entity, new Rotation { Value = quaternion.identity });
                         EntityManager.SetComponentData(entity, new Scale { Value = spawner.scale });
                         EntityManager.SetComponentData(entity, new Velocity { Value = _random.NextFloat3Direction() * spawner.initSpeed });
