@@ -4,11 +4,15 @@ using UnityEngine;
 using UnityEngine.UI;
 
 using Unity.Mathematics;
+using Unity.Jobs.LowLevel.Unsafe;
 
 using TMPro;
 
 public class ComputePlan_Controller : MonoBehaviour
 {
+    [SerializeField]
+    private InputField _inputFieldNumWorkerThreads;
+
     [SerializeField]
     private Dropdown _dropdownComputePlan;
     [SerializeField]
@@ -29,6 +33,9 @@ public class ComputePlan_Controller : MonoBehaviour
 
     private void Start()
     {
+        _inputFieldNumWorkerThreads.text = JobsUtility.JobWorkerCount.ToString();
+        _inputFieldNumWorkerThreads.onEndEdit.AddListener(UpdateNumWorkerThreads);
+
         _planList = new List<ComputeNeighborsPlan>()
         {
             ComputeNeighborsPlan.Direct,
@@ -102,5 +109,15 @@ public class ComputePlan_Controller : MonoBehaviour
 
         CellIndex_Bootstrap.RangeCoef = range_coef;
         _inputFieldRangeCoef.text = range_coef.ToString();
+    }
+    public void UpdateNumWorkerThreads(string str)
+    {
+        if(int.TryParse(str, out int n_Threads))
+        {
+            n_Threads = math.max(n_Threads, 1);
+            n_Threads = math.min(n_Threads, JobsUtility.JobWorkerMaximumCount);
+            JobsUtility.JobWorkerCount = n_Threads;
+        }
+        _inputFieldNumWorkerThreads.text = JobsUtility.JobWorkerCount.ToString();
     }
 }
