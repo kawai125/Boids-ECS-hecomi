@@ -66,7 +66,7 @@ public class UI_controller : MonoBehaviour
 
         //--- input scale
         float.TryParse(inputScaleField.text, out float new_scale);
-        if (new_scale > 5f)
+        if (new_scale >= 5f)
         {
             cageScale = new_scale;
             cageView.UpdateScale(cageScale);
@@ -76,7 +76,7 @@ public class UI_controller : MonoBehaviour
     {
         if(float.TryParse(str, out float r_search))
         {
-            if(0.5f < r_search && r_search < 15f)
+            if(0.2f <= r_search && r_search < 15f)
             {
                 searchRange = r_search;
                 return;
@@ -89,7 +89,7 @@ public class UI_controller : MonoBehaviour
     {
         if (float.TryParse(str, out float angle))
         {
-            if (1f < angle && angle <= 180f)
+            if (1f <= angle && angle <= 180f)
             {
                 searchAngle = angle;
                 return;
