@@ -186,8 +186,7 @@ public class Benchmark_Controller : MonoBehaviour
     {
         if (float.TryParse(str, out float fps))
         {
-            fps = math.max(fps, 10f);
-            fps = math.min(fps, 1000f);
+            fps = math.clamp(fps, 10f, 1000f);
             _target_fps = fps;
         }
         inputFieldTargetFPS.text = _target_fps.ToString();
@@ -196,8 +195,7 @@ public class Benchmark_Controller : MonoBehaviour
     {
         if(float.TryParse(str, out float density))
         {
-            density = math.max(density, 0.1f);
-            density = math.min(density, 10f);
+            density = math.clamp(density, 0.1f, 10f);
             _boids_density = density;
         }
         inputFieldBoidsDensity.text = _boids_density.ToString();

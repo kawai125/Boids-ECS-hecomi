@@ -43,12 +43,24 @@ public partial class ReplaceTagComponentSystem : SystemBase
             case ComputeNeighborsPlan.CellIndex_Cell_Cell:
                 RemoveComponentFromBoids<Tag_ComputeNeighbors_CellIndex_Cell_Cell>(manager, boids_query, prefab_entity);
                 break;
-            case ComputeNeighborsPlan.CellIndex_Combined:
-                RemoveComponentFromBoids<Tag_ComputeNeighbors_CellIndex_Combined>(manager, boids_query, prefab_entity);
+            case ComputeNeighborsPlan.CellIndex_Combined_CNL:
+                RemoveComponentFromBoids<Tag_ComputeNeighbors_CellIndex_Combined_CNL>(manager, boids_query, prefab_entity);
+                break;
+            case ComputeNeighborsPlan.CellIndex_Combined_CC:
+                RemoveComponentFromBoids<Tag_ComputeNeighbors_CellIndex_Combined_CC>(manager, boids_query, prefab_entity);
+                break;
+            default: throw new ArgumentOutOfRangeException(nameof(old_plan));
+        }
+
+        switch (old_plan)
+        {
+            case ComputeNeighborsPlan.CellIndex_Combined_CNL:
+            case ComputeNeighborsPlan.CellIndex_Combined_CC:
                 AddComponentToBoids<Tag_UpdateInteraction>(manager, boids_query, prefab_entity);
                 AddBufferToBoids<NeighborsEntityBuffer>(manager, boids_query, prefab_entity);
                 break;
-            default: throw new ArgumentOutOfRangeException(nameof(old_plan));
+            default:
+                break;
         }
 
         switch (new_plan)
@@ -65,12 +77,24 @@ public partial class ReplaceTagComponentSystem : SystemBase
             case ComputeNeighborsPlan.CellIndex_Cell_Cell:
                 AddComponentToBoids<Tag_ComputeNeighbors_CellIndex_Cell_Cell>(manager, boids_query, prefab_entity);
                 break;
-            case ComputeNeighborsPlan.CellIndex_Combined:
-                AddComponentToBoids<Tag_ComputeNeighbors_CellIndex_Combined>(manager, boids_query, prefab_entity);
+            case ComputeNeighborsPlan.CellIndex_Combined_CNL:
+                AddComponentToBoids<Tag_ComputeNeighbors_CellIndex_Combined_CNL>(manager, boids_query, prefab_entity);
+                break;
+            case ComputeNeighborsPlan.CellIndex_Combined_CC:
+                AddComponentToBoids<Tag_ComputeNeighbors_CellIndex_Combined_CC>(manager, boids_query, prefab_entity);
+                break;
+            default: throw new ArgumentOutOfRangeException(nameof(new_plan));
+        }
+
+        switch (new_plan)
+        {
+            case ComputeNeighborsPlan.CellIndex_Combined_CNL:
+            case ComputeNeighborsPlan.CellIndex_Combined_CC:
                 RemoveComponentFromBoids<Tag_UpdateInteraction>(manager, boids_query, prefab_entity);
                 RemoveBufferFromBoids<NeighborsEntityBuffer>(manager, boids_query, prefab_entity);
                 break;
-            default: throw new ArgumentOutOfRangeException(nameof(new_plan));
+            default:
+                break;
         }
     }
     private static void RemoveComponentFromBoids<T>(EntityManager manager, EntityQuery boids_query, Entity prefab)

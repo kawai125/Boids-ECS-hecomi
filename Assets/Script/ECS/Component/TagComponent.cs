@@ -13,7 +13,8 @@ public struct Tag_ComputeNeighbors_Direct : IComponentData { }
 public struct Tag_ComputeNeighbors_CellIndex_Entity_NeighborList : IComponentData { }
 public struct Tag_ComputeNeighbors_CellIndex_Cell_NeighborList : IComponentData { }
 public struct Tag_ComputeNeighbors_CellIndex_Cell_Cell : IComponentData { }
-public struct Tag_ComputeNeighbors_CellIndex_Combined : IComponentData { }
+public struct Tag_ComputeNeighbors_CellIndex_Combined_CNL : IComponentData { }
+public struct Tag_ComputeNeighbors_CellIndex_Combined_CC : IComponentData { }
 
 public enum ComputeNeighborsPlan
 {
@@ -23,7 +24,8 @@ public enum ComputeNeighborsPlan
     CellIndex_Cell_NeighborList,
     CellIndex_Cell_Cell,
 
-    CellIndex_Combined,
+    CellIndex_Combined_CNL,
+    CellIndex_Combined_CC,
 }
 
 public struct ComputePlanSwicher : IComponentData

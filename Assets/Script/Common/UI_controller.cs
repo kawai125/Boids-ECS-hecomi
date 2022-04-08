@@ -76,8 +76,7 @@ public class UI_controller : MonoBehaviour
     {
         if(float.TryParse(str, out float r_search))
         {
-            r_search = Math.Max(r_search, 0.2f);
-            r_search = Math.Min(r_search, 15f);
+            r_search = Mathf.Clamp(r_search, 0.2f, 15f);
             searchRange = r_search;
         }
         inputSearchRange.text = searchRange.ToString();
@@ -86,8 +85,7 @@ public class UI_controller : MonoBehaviour
     {
         if (float.TryParse(str, out float angle))
         {
-            angle = Math.Max(angle, 1f);
-            angle = Math.Min(angle, 180f);
+            angle = Mathf.Clamp(angle, 1f, 180f);
             searchAngle = angle;
         }
         inputSearchAngle.text = searchAngle.ToString();

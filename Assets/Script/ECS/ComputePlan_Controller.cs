@@ -44,7 +44,8 @@ public class ComputePlan_Controller : MonoBehaviour
             ComputeNeighborsPlan.CellIndex_Cell_NeighborList,
             ComputeNeighborsPlan.CellIndex_Cell_Cell,
 
-            ComputeNeighborsPlan.CellIndex_Combined,
+            ComputeNeighborsPlan.CellIndex_Combined_CNL,
+            ComputeNeighborsPlan.CellIndex_Combined_CC,
         };
 
         _dropdownComputePlan.ClearOptions();
@@ -103,9 +104,7 @@ public class ComputePlan_Controller : MonoBehaviour
             _inputFieldRangeCoef.text = CellIndex_Bootstrap.RangeCoef.ToString();
             return;
         }
-
-        range_coef = math.min(range_coef, maxRangeCoef);
-        range_coef = math.max(range_coef, minRangeCoef);
+        range_coef = math.clamp(range_coef, minRangeCoef, maxRangeCoef);
 
         CellIndex_Bootstrap.RangeCoef = range_coef;
         _inputFieldRangeCoef.text = range_coef.ToString();
@@ -114,8 +113,7 @@ public class ComputePlan_Controller : MonoBehaviour
     {
         if(int.TryParse(str, out int n_Threads))
         {
-            n_Threads = math.max(n_Threads, 1);
-            n_Threads = math.min(n_Threads, JobsUtility.JobWorkerMaximumCount);
+            n_Threads = math.clamp(n_Threads, 1, JobsUtility.JobWorkerMaximumCount);
             JobsUtility.JobWorkerCount = n_Threads;
         }
         _inputFieldNumWorkerThreads.text = JobsUtility.JobWorkerCount.ToString();
