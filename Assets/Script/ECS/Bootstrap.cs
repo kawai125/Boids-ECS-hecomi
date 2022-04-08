@@ -15,6 +15,7 @@ public class Bootstrap : MonoBehaviour
     public static float WallScale { get; private set; }
     public static float NeighborSearchRange { get; private set; }
     public static float NeighborSearchAngle { get; private set; }
+    public static float VortexIntensity { get; private set; }
 
     //[SerializeField] Vector3 boidScale = new Vector3(1.0f, 1.0f, 1.0f);
     [SerializeField] private float boidScale = 1.0f;
@@ -46,6 +47,7 @@ public class Bootstrap : MonoBehaviour
         WallScale = Define.InitialWallScale;
         NeighborSearchRange = Define.InitialNeighborSearchRange;
         NeighborSearchAngle = Define.InitialNeighborSearchAngle;
+        VortexIntensity = Define.InitialVortexIntensity;
 
         //--- setup managers
         var world = World.DefaultGameObjectInjectionWorld;
@@ -122,6 +124,7 @@ public class Bootstrap : MonoBehaviour
         WallScale = ui_input.cageScale;
         NeighborSearchRange = ui_input.searchRange;
         NeighborSearchAngle = ui_input.searchAngle;
+        VortexIntensity = ui_input.vortexIntensity;
     }
 
     public void SwitchComputeNeighborsPlan(ComputeNeighborsPlan old_plan, ComputeNeighborsPlan new_plan)

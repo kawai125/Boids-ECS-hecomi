@@ -14,13 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   initSpeed: 2
   minSpeed: 2
-  maxSpeed: 6
-  neighborDistance: 1.2
-  neighborFov: 90
-  alignmentWeight: 2
-  separationWeight: 8
+  maxSpeed: 7
+  alignmentWeight: 1.5
+  separationWeight: 9
   cohesionWeight: 3
-  wallScale: 25
   wallDistance: 2
   wallWeight: 1
-  cellIndexRangeCoef: 2.5

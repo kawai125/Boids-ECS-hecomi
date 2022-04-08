@@ -24,6 +24,8 @@ public readonly struct Define
     public const float InitialNeighborSearchRange = 1.2f;
     public const float InitialNeighborSearchAngle = 90f;
 
+    public const float InitialVortexIntensity = 1f;
+
     public const float InitialCellIndexRangeCoef = 1.5f;
 
     public const float InitialDensityForBoids = 0.6f;

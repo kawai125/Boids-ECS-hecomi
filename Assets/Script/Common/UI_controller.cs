@@ -29,6 +29,11 @@ public class UI_controller : MonoBehaviour
     [SerializeField]
     private InputField inputSearchAngle;
 
+    public float vortexIntensity;
+
+    [SerializeField]
+    private InputField inputVortexIntensity;
+
     // Start is called before the first frame update
     void Start()
     {
@@ -47,6 +52,11 @@ public class UI_controller : MonoBehaviour
         {
             inputSearchAngle.text = Define.InitialNeighborSearchAngle.ToString();
             inputSearchAngle.onEndEdit.AddListener(UpdateSearchAngle);
+        }
+        if (inputVortexIntensity != null)
+        {
+            inputVortexIntensity.text = Define.InitialVortexIntensity.ToString();
+            inputVortexIntensity.onEndEdit.AddListener(UpdateVortexIntensity);
         }
     }
 
@@ -89,6 +99,15 @@ public class UI_controller : MonoBehaviour
             searchAngle = angle;
         }
         inputSearchAngle.text = searchAngle.ToString();
+    }
+    public void UpdateVortexIntensity(string str)
+    {
+        if(float.TryParse(str, out float vortex))
+        {
+            vortex = Mathf.Clamp(vortex, -5f, 5f);
+            vortexIntensity = vortex;
+        }
+        inputVortexIntensity.text = vortexIntensity.ToString();
     }
 
     // for benchmark
