@@ -7,19 +7,15 @@ using Unity.Entities;
 using Unity.Transforms;
 using Unity.Mathematics;
 
+
 public class Bootstrap : MonoBehaviour
 {
     public static Bootstrap Instance { get; private set; }
-    public static Param Param {  get { return Instance.param; } }
 
     public static float WallScale { get; private set; }
-    public static float NeighborSearchRange { get; private set; }
-    public static float NeighborSearchAngle { get; private set; }
-    public static float VortexIntensity { get; private set; }
 
     //[SerializeField] Vector3 boidScale = new Vector3(1.0f, 1.0f, 1.0f);
     [SerializeField] private float boidScale = 1.0f;
-    [SerializeField] private Param param;
 
     [SerializeField] GameObject prefab_obj;
     private Entity prefab_entity;
@@ -43,11 +39,8 @@ public class Bootstrap : MonoBehaviour
 
     public void Start()
     {
-        //--- initialize dynamic parameters
+        //--- initialize dynamic parameter
         WallScale = Define.InitialWallScale;
-        NeighborSearchRange = Define.InitialNeighborSearchRange;
-        NeighborSearchAngle = Define.InitialNeighborSearchAngle;
-        VortexIntensity = Define.InitialVortexIntensity;
 
         //--- setup managers
         var world = World.DefaultGameObjectInjectionWorld;
@@ -109,7 +102,7 @@ public class Bootstrap : MonoBehaviour
             Prefab = prefab_entity,
             n = n_diff,
             scale = boidScale,
-            initSpeed = param.initSpeed
+            initSpeed = BoidParams_Bootstrap.Param.initSpeed
         };
         entity_manager.SetComponentData(trigger, spawner);
     }
@@ -122,9 +115,6 @@ public class Bootstrap : MonoBehaviour
     {
         UpdateBoidNum(ui_input.boidCount);
         WallScale = ui_input.cageScale;
-        NeighborSearchRange = ui_input.searchRange;
-        NeighborSearchAngle = ui_input.searchAngle;
-        VortexIntensity = ui_input.vortexIntensity;
     }
 
     public void SwitchComputeNeighborsPlan(ComputeNeighborsPlan old_plan, ComputeNeighborsPlan new_plan)

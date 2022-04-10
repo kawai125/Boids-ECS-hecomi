@@ -49,6 +49,9 @@ public partial class ReplaceTagComponentSystem : SystemBase
             case ComputeNeighborsPlan.CellIndex_Combined_CC:
                 RemoveComponentFromBoids<Tag_ComputeNeighbors_CellIndex_Combined_CC>(manager, boids_query, prefab_entity);
                 break;
+            case ComputeNeighborsPlan.CellIndex_MergedCell_NL:
+                RemoveComponentFromBoids<Tag_ComputeNeighbors_CellIndex_MergedCell_NL>(manager, boids_query, prefab_entity);
+                break;
             default: throw new ArgumentOutOfRangeException(nameof(old_plan));
         }
 
@@ -82,6 +85,9 @@ public partial class ReplaceTagComponentSystem : SystemBase
                 break;
             case ComputeNeighborsPlan.CellIndex_Combined_CC:
                 AddComponentToBoids<Tag_ComputeNeighbors_CellIndex_Combined_CC>(manager, boids_query, prefab_entity);
+                break;
+            case ComputeNeighborsPlan.CellIndex_MergedCell_NL:
+                AddComponentToBoids<Tag_ComputeNeighbors_CellIndex_MergedCell_NL>(manager, boids_query, prefab_entity);
                 break;
             default: throw new ArgumentOutOfRangeException(nameof(new_plan));
         }

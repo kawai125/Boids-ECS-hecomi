@@ -20,7 +20,7 @@ public partial class SeparationSystem : SystemBase
     {
         var common_data = new SeparationDataContainer
         {
-            separationWeight = Bootstrap.Param.separationWeight,
+            separationWeight = BoidParams_Bootstrap.Param.separationWeight,
             positionFromGrovalEntity = GetComponentDataFromEntity<Translation>(true), // bool input = is_read_only (default = false)
         };
 

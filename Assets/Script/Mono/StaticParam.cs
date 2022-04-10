@@ -13,11 +13,7 @@ public class StaticParam : MonoBehaviour
     private void Start()
     {
         WallScale = Define.InitialWallScale;
-        NeighborSearchRange = Define.InitialNeighborSearchRange;
-        NeighborSearchAngle = Define.InitialNeighborSearchAngle;
     }
 
     public static float WallScale { get; set; }
-    public static float NeighborSearchRange { get; set; }
-    public static float NeighborSearchAngle { get; set; }
 }

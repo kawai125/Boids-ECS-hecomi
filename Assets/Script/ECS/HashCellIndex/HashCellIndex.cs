@@ -85,17 +85,21 @@ namespace Domain
         {
             return _info.Target->GetIndex(pos);
         }
+
+        //------------------
+        // accessor for cells
+        //------------------
         public unsafe void GetNeighborList(float3 pos, float r_search, BoundaryCondition boundary,
                                            NativeList<T> list)
         {
-            GetNeighborList(GetIndex(pos), r_search, boundary, list);
+            list.Clear();
+            _info.Target->GetNeighborListImpl(GetIndex(pos), r_search, boundary, _map, ref list);
         }
         public unsafe void GetNeighborList(PosIndex origin, float r_search, BoundaryCondition boundary,
                                            NativeList<T> list)
         {
             list.Clear();
-            if (_map.Count() <= 0) return;
-            _info.Target->GetNeighborListImpl(origin, r_search, boundary, _map, list);
+            _info.Target->GetNeighborListImpl(origin, r_search, boundary, _map, ref list);
         }
 
         public unsafe PosIndex GridSize { get { return _info.Target->GridSize; } }
@@ -120,17 +124,61 @@ namespace Domain
         public void GetValuesInCell(PosIndex index, NativeList<T> list)
         {
             list.Clear();
-            if (_map.Count() <= 0) return;
             CellIndexInfo.GetMappedData(index, _map, list);
         }
         public unsafe void GetSearchIndexList(PosIndex index, float r_search, BoundaryCondition boundary,
                                               NativeList<PosIndex> search_target_list)
         {
             search_target_list.Clear();
-            if(_map.Count() <= 0) return;
             _info.Target->GetSearchIndexListImpl(index, r_search, boundary, search_target_list);
         }
 
+        //------------------
+        // for merged cell
+        //------------------
+        public unsafe void GetContainsMergedCellList(int n_merged, NativeList<MergedPosIndex> cell_list)
+        {
+            if (n_merged <= 0) throw new ArgumentOutOfRangeException();
+            cell_list.Clear();
+            _info.Target->GetContainsMergedCellListImpl(n_merged, cell_list, _map);
+        }
+        public unsafe NativeList<MergedPosIndex> GetContainsMergedCellList(int n_merged, Allocator alloc)
+        {
+            if (n_merged <= 0) throw new ArgumentOutOfRangeException();
+            var cell_list = new NativeList<MergedPosIndex>(16, alloc);
+            _info.Target->GetContainsMergedCellListImpl(n_merged, cell_list, _map);
+            return cell_list;
+        }
+        public unsafe void GetNeighborList(MergedPosIndex target, float r_search, BoundaryCondition boundary,
+                                           MergedBuffer<T> buffer)
+        {
+            _info.Target->GetNeighborListImpl(target, r_search, boundary, _map, ref buffer);
+        }
+        public unsafe MergedBuffer<T> GetNeighborList(MergedPosIndex target, float r_search, BoundaryCondition boundary,
+                                               int capacityPerCell, Allocator alloc)
+        {
+            int n_cell = target.Length;
+            var buffer = new MergedBuffer<T>(n_cell, capacityPerCell * n_cell, alloc);
+            //GetNeighborList(target, r_search, boundary, buffer);
+            _info.Target->GetNeighborListImpl(target, r_search, boundary, _map, ref buffer);
+            return buffer;
+        }
+        public unsafe void GetValuesInMergedCell(MergedPosIndex target, MergedBuffer<T> buffer)
+        {
+            CellIndexInfo.GetMappedData(target, _map, buffer);
+        }
+        public MergedBuffer<T> GetValuesInMergedCell(MergedPosIndex target,
+                                                     int capacityForBuffer, Allocator alloc)
+        {
+            int n_cell = target.Length;
+            var buffer = new MergedBuffer<T>(n_cell, capacityForBuffer * n_cell, alloc);
+            GetValuesInMergedCell(target, buffer);
+            return buffer;
+        }
+
+        //------------------
+        // parallel writer
+        //------------------
         public unsafe ParallelWriter AsParallelWriter()
         {
             return new ParallelWriter() { _info = _info.Target,
@@ -222,7 +270,7 @@ namespace Domain
             }
             public void GetNeighborListImpl(PosIndex origin, float r_search, BoundaryCondition boundary,
                                             NativeMultiHashMap<PosIndex, T> map,
-                                            NativeList<T> list)
+                                            ref NativeList<T> list)
             {
                 var i_range = GetIndexRange(r_search);
 
@@ -283,6 +331,33 @@ namespace Domain
                     }
                 }
             }
+            public unsafe void GetNeighborListImpl(MergedPosIndex target, float r_search, BoundaryCondition boundary,
+                                                   NativeMultiHashMap<PosIndex, T> map,
+                                                   ref MergedBuffer<T> buffer)
+            {
+                buffer._localGrid.Value = target;
+                buffer.Clear();
+
+                var workspace = new NativeList<T>(buffer._buffer.Capacity * 4 / target.Length, Allocator.Temp);
+
+                for (int iz = target.Lo.iz; iz < target.Hi.iz; iz++)
+                {
+                    for (int iy = target.Lo.iy; iy < target.Hi.iy; iy++)
+                    {
+                        for (int ix = target.Lo.ix; ix < target.Hi.ix; ix++)
+                        {
+                            var index = new PosIndex(ix, iy, iz);
+
+                            workspace.Clear();
+                            GetNeighborListImpl(index, r_search, boundary, map, ref workspace);
+
+                            buffer.Add((T*)workspace.GetUnsafePtr(), workspace.Length);
+                        }
+                    }
+                }
+
+                workspace.Dispose();
+            }
             public void GetGridIndexListImpl(NativeList<PosIndex> list)
             {
                 for(int iz=0; iz<GridSize.iz; iz++)
@@ -309,6 +384,45 @@ namespace Domain
                         }
                     }
                 }
+            }
+            public void GetContainsMergedCellListImpl(int n_merge, NativeList<MergedPosIndex> list, NativeMultiHashMap<PosIndex, T> map)
+            {
+                //var sb = new System.Text.StringBuilder();
+
+                for (int iz = 0; iz < GridSize.iz; iz += n_merge)
+                {
+                    for (int iy = 0; iy < GridSize.iy; iy += n_merge)
+                    {
+                        for (int ix = 0; ix < GridSize.ix; ix += n_merge)
+                        {
+                            var Lo = new PosIndex(ix, iy, iz);
+                            var Hi = new PosIndex(math.min(ix + n_merge, GridSize.ix),
+                                                  math.min(iy + n_merge, GridSize.iy),
+                                                  math.min(iz + n_merge, GridSize.iz));
+                            if (ContainsInMergedCell(Lo, Hi, map))
+                            {
+                                list.Add(new MergedPosIndex { Lo = Lo, Hi = Hi });
+                            }
+                        }
+                    }
+                }
+
+                //UnityEngine.Debug.Log(sb);
+            }
+            private static bool ContainsInMergedCell(PosIndex Lo, PosIndex Hi, NativeMultiHashMap<PosIndex, T> map)
+            {
+                for (int i_mz = Lo.iz; i_mz < Hi.iz; i_mz++)
+                {
+                    for (int i_my = Lo.iy; i_my < Hi.iy; i_my++)
+                    {
+                        for (int i_mx = Lo.ix; i_mx < Hi.ix; i_mx++)
+                        {
+                            var index = new PosIndex(i_mx, i_my, i_mz);
+                            if (map.ContainsKey(index)) return true;
+                        }
+                    }
+                }
+                return false;
             }
             private static bool IsSkipIndex(ref int index, int grid_size, bool is_periodic, int i_range_lo, int i_range_hi)
             {
@@ -349,6 +463,28 @@ namespace Domain
                 while (map.TryGetNextValue(out item, ref iterator))
                 {
                     list.Add(item);
+                }
+            }
+            public static void GetMappedData(MergedPosIndex target,
+                                             NativeMultiHashMap<PosIndex, T> map,
+                                             MergedBuffer<T> buffer)
+            {
+                buffer.Clear();
+                for (int iz = target.Lo.iz; iz < target.Hi.iz; iz++)
+                {
+                    for (int iy = target.Lo.iy; iy < target.Hi.iy; iy++)
+                    {
+                        for (int ix = target.Lo.ix; ix < target.Hi.ix; ix++)
+                        {
+                            var index = new PosIndex(ix, iy, iz);
+
+                            int start = buffer._buffer.Length;
+                            GetMappedData(index, map, buffer._buffer);
+
+                            var range = new MergedBuffer<T>.BufferRange { start = start, length = buffer._buffer.Length - start };
+                            buffer._bufferIndex.Add(range);
+                        }
+                    }
                 }
             }
 

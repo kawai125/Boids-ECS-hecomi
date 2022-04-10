@@ -16,7 +16,7 @@ public partial class WallSystem : SystemBase
         private float thresh;
         private float weight;
 
-        public void SetParam([ReadOnly] Param param)
+        public void SetParam(BoidParams param)
         {
             scale = Bootstrap.WallScale * 0.5f;
             thresh = param.wallDistance;
@@ -67,7 +67,7 @@ public partial class WallSystem : SystemBase
     protected override void OnUpdate()
     {
         var compute_wall = new ComputeWallForce();
-        compute_wall.SetParam(Bootstrap.Param);
+        compute_wall.SetParam(BoidParams_Bootstrap.Param);
 
         Dependency = Entities.
             WithName("WallJob").

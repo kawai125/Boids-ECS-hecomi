@@ -33,7 +33,7 @@ public partial class VortexSystem : SystemBase
 
         float vortex_h = vortexHorizontal;
 
-        float intensity = Bootstrap.VortexIntensity;
+        float intensity = BoidParams_Bootstrap.Param.vortexIntensity;
 
         float3 center_pos = center;
 

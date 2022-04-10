@@ -151,6 +151,18 @@ namespace Domain
             this.iz = iz;
         }
 
+        public float3 GetCenterPos(Box box, PosIndex gridSize)
+        {
+            float3 size = box.Size;
+            float3 local_center = new float3
+            {
+                x = (size.x * ix) / gridSize.ix,
+                y = (size.y * iy) / gridSize.iy,
+                z = (size.z * iz) / gridSize.iz,
+            };
+            return local_center + box.Lo;
+        }
+
         public bool Equals(PosIndex index)
         {
             return (ix == index.ix) && (iy == index.iy) && (iz == index.iz);

@@ -22,42 +22,11 @@ public class UI_controller : MonoBehaviour
     [SerializeField]
     private Button applyButton;
 
-    public float searchRange, searchAngle;
-
-    [SerializeField]
-    private InputField inputSearchRange;
-    [SerializeField]
-    private InputField inputSearchAngle;
-
-    public float vortexIntensity;
-
-    [SerializeField]
-    private InputField inputVortexIntensity;
-
     // Start is called before the first frame update
     void Start()
     {
         cageView.Init();
         cageView.UpdateScale(cageScale);
-
-        searchRange = Define.InitialNeighborSearchRange;
-        searchAngle = Define.InitialNeighborSearchAngle;
-
-        if (inputSearchRange != null)
-        {
-            inputSearchRange.text = Define.InitialNeighborSearchRange.ToString();
-            inputSearchRange.onEndEdit.AddListener(UpdateSearchRange);
-        }
-        if (inputSearchAngle != null)
-        {
-            inputSearchAngle.text = Define.InitialNeighborSearchAngle.ToString();
-            inputSearchAngle.onEndEdit.AddListener(UpdateSearchAngle);
-        }
-        if (inputVortexIntensity != null)
-        {
-            inputVortexIntensity.text = Define.InitialVortexIntensity.ToString();
-            inputVortexIntensity.onEndEdit.AddListener(UpdateVortexIntensity);
-        }
     }
 
     public void OnClick()
@@ -81,33 +50,6 @@ public class UI_controller : MonoBehaviour
             cageScale = new_scale;
             cageView.UpdateScale(cageScale);
         }
-    }
-    public void UpdateSearchRange(string str)
-    {
-        if(float.TryParse(str, out float r_search))
-        {
-            r_search = Mathf.Clamp(r_search, 0.2f, 15f);
-            searchRange = r_search;
-        }
-        inputSearchRange.text = searchRange.ToString();
-    }
-    public void UpdateSearchAngle(string str)
-    {
-        if (float.TryParse(str, out float angle))
-        {
-            angle = Mathf.Clamp(angle, 1f, 180f);
-            searchAngle = angle;
-        }
-        inputSearchAngle.text = searchAngle.ToString();
-    }
-    public void UpdateVortexIntensity(string str)
-    {
-        if(float.TryParse(str, out float vortex))
-        {
-            vortex = Mathf.Clamp(vortex, -5f, 5f);
-            vortexIntensity = vortex;
-        }
-        inputVortexIntensity.text = vortexIntensity.ToString();
     }
 
     // for benchmark

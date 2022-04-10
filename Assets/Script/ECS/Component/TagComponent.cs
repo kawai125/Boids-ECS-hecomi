@@ -15,6 +15,7 @@ public struct Tag_ComputeNeighbors_CellIndex_Cell_NeighborList : IComponentData 
 public struct Tag_ComputeNeighbors_CellIndex_Cell_Cell : IComponentData { }
 public struct Tag_ComputeNeighbors_CellIndex_Combined_CNL : IComponentData { }
 public struct Tag_ComputeNeighbors_CellIndex_Combined_CC : IComponentData { }
+public struct Tag_ComputeNeighbors_CellIndex_MergedCell_NL : IComponentData { }
 
 public enum ComputeNeighborsPlan
 {
@@ -26,6 +27,8 @@ public enum ComputeNeighborsPlan
 
     CellIndex_Combined_CNL,
     CellIndex_Combined_CC,
+
+    CellIndex_MergedCell_NL,
 }
 
 public struct ComputePlanSwicher : IComponentData

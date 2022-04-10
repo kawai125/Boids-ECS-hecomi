@@ -20,7 +20,7 @@ public partial class CohesionSystem : SystemBase
     {
         var common_data = new CohesionDataContainer
         {
-            cohesionWeight = Bootstrap.Param.cohesionWeight,
+            cohesionWeight = BoidParams_Bootstrap.Param.cohesionWeight,
             positionFromGrovalEntity = GetComponentDataFromEntity<Translation>(true), // bool input = is_read_only (default = false)
         };
 

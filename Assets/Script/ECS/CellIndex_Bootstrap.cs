@@ -20,25 +20,15 @@ public class CellIndex_Bootstrap : MonoBehaviour
 
     public static HashCellIndex<Entity> HashCellIndex { get { return Instance._cellIndex; } }
 
-    public static float RangeCoef {
-        get { return Instance._range_coef; }
-        set { Instance._range_coef = value; }
-    }
     public static int NumberOfContainsCells { get { return Instance._num_contains_cells; } }
     public static int CellBatchSize { get { return Instance._cell_batch_size; } }
-    public static float MapBufferUsed
-    {
-        get { return Instance._map_buffer_used; }
-        set { Instance._map_buffer_used = value; }
-    }
+    public static int CellMergeSize;
+    public static float RangeCoef;
 
     private HashCellIndex<Entity> _cellIndex;
-    private NativeList<PosIndex> _containsIndexList;
 
-    private float _range_coef;
     private int _num_contains_cells;
     private int _cell_batch_size;
-    private float _map_buffer_used;
 
     private Dictionary<string, JobHandle> _handles;
     private bool _allocated;
@@ -46,10 +36,10 @@ public class CellIndex_Bootstrap : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        _cellIndex = new HashCellIndex<Entity>(Allocator.Persistent);
-        _range_coef = Define.InitialCellIndexRangeCoef;
+        RangeCoef = Define.InitialCellIndexRangeCoef;
+        CellMergeSize = Define.InitialCellMergeSize;
 
-        _containsIndexList = new NativeList<PosIndex>(Allocator.Persistent);
+        _cellIndex = new HashCellIndex<Entity>(Allocator.Persistent);
 
         _handles = new Dictionary<string, JobHandle>();
 
@@ -72,8 +62,6 @@ public class CellIndex_Bootstrap : MonoBehaviour
 
             _cellIndex.Dispose();
 
-            _containsIndexList.Dispose();
-
             _allocated = false;
         }
     }
@@ -86,13 +74,17 @@ public class CellIndex_Bootstrap : MonoBehaviour
         _cellIndex.InitDomainWithRange(new Box(new float3(-(wall_scale_for_cell_index)),
                                                new float3( (wall_scale_for_cell_index))),
                                        n_boids,
-                                       Bootstrap.NeighborSearchRange * _range_coef);
+                                       BoidParams_Bootstrap.Param.neighborSearchRange * RangeCoef);
+        //Debug.Log($"RangeCoef={RangeCoef}");
     }
-    public static void UpdateBatchSize() => Instance.UpdateBatchSizeImpl();
-    private void UpdateBatchSizeImpl()
+    public static int UpdateBatchSize(int n_effective_cells)
     {
-        _cellIndex.GetContainsIndexList(_containsIndexList);
-        _num_contains_cells = _containsIndexList.Length;
+        Instance.UpdateBatchSizeImpl(n_effective_cells);
+        return Instance._cell_batch_size;
+    }
+    private void UpdateBatchSizeImpl(int n_effective_cells)
+    {
+        _num_contains_cells = n_effective_cells;
 
         //--- grid size based
         //    var grid = _cellIndex.GridSize;

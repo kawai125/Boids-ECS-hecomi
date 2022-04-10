@@ -25,11 +25,13 @@ public class ComputePlan_Controller : MonoBehaviour
     [SerializeField]
     private TMP_Text _textNumberOfTargetCells;
 
+    [SerializeField]
+    private GameObject _gameObjectMergedCelSize;
+    [SerializeField]
+    private InputField _inputFieldMergedCellSize;
+
     private List<ComputeNeighborsPlan> _planList;
     private ComputeNeighborsPlan _current_plan;
-
-    private const float minRangeCoef = 0.2f;
-    private const float maxRangeCoef = 10f;
 
     private void Start()
     {
@@ -46,6 +48,8 @@ public class ComputePlan_Controller : MonoBehaviour
 
             ComputeNeighborsPlan.CellIndex_Combined_CNL,
             ComputeNeighborsPlan.CellIndex_Combined_CC,
+
+            ComputeNeighborsPlan.CellIndex_MergedCell_NL,
         };
 
         _dropdownComputePlan.ClearOptions();
@@ -56,14 +60,17 @@ public class ComputePlan_Controller : MonoBehaviour
         }
         _dropdownComputePlan.AddOptions(drop_menu);
         _dropdownComputePlan.value = 0;
+        _dropdownComputePlan.onValueChanged.AddListener(OnValueChangedDropdownComputePlan);
 
         _inputFieldRangeCoef.text = Define.InitialCellIndexRangeCoef.ToString();
-
-
-        _dropdownComputePlan.onValueChanged.AddListener(OnValueChangedDropdownComputePlan);
         _inputFieldRangeCoef.onEndEdit.AddListener(OnEndEditInputFieldRangeCoef);
 
+        _inputFieldMergedCellSize.text = Define.InitialCellMergeSize.ToString();
+        _inputFieldMergedCellSize.onEndEdit.AddListener(UpdateMergedCellSize);
+
         _current_plan = ComputeNeighborsPlan.Direct;
+
+        _gameObjectMergedCelSize.SetActive(false);
     }
 
     private void Update()
@@ -88,6 +95,13 @@ public class ComputePlan_Controller : MonoBehaviour
             _textBatchSize.text = CellIndex_Bootstrap.CellBatchSize.ToString();
             _textNumberOfTargetCells.text = CellIndex_Bootstrap.NumberOfContainsCells.ToString();
         }
+
+        if(_current_plan == ComputeNeighborsPlan.CellIndex_MergedCell_NL)
+        {
+            int nm = CellIndex_Bootstrap.CellMergeSize;
+            int batch = nm * nm * nm;
+            _textBatchSize.text = $"{batch} x {CellIndex_Bootstrap.CellBatchSize}";
+        }
     }
 
     public void OnValueChangedDropdownComputePlan(int index)
@@ -95,19 +109,17 @@ public class ComputePlan_Controller : MonoBehaviour
         var new_plan = _planList[index];
         Bootstrap.Instance.SwitchComputeNeighborsPlan(_current_plan, new_plan);
         _current_plan = new_plan;
+
+        _gameObjectMergedCelSize.SetActive(new_plan == ComputeNeighborsPlan.CellIndex_MergedCell_NL);
     }
     public void OnEndEditInputFieldRangeCoef(string str)
     {
-        if (!float.TryParse(str, out float range_coef))
+        if (float.TryParse(str, out float range_coef))
         {
-            //--- fail to parse
-            _inputFieldRangeCoef.text = CellIndex_Bootstrap.RangeCoef.ToString();
-            return;
+            range_coef = math.clamp(range_coef, 0.2f, 10f);
+            CellIndex_Bootstrap.RangeCoef = range_coef;
         }
-        range_coef = math.clamp(range_coef, minRangeCoef, maxRangeCoef);
-
-        CellIndex_Bootstrap.RangeCoef = range_coef;
-        _inputFieldRangeCoef.text = range_coef.ToString();
+        _inputFieldRangeCoef.text = CellIndex_Bootstrap.RangeCoef.ToString();
     }
     public void UpdateNumWorkerThreads(string str)
     {
@@ -117,5 +129,14 @@ public class ComputePlan_Controller : MonoBehaviour
             JobsUtility.JobWorkerCount = n_Threads;
         }
         _inputFieldNumWorkerThreads.text = JobsUtility.JobWorkerCount.ToString();
+    }
+    public void UpdateMergedCellSize(string str)
+    {
+        if(int.TryParse(str, out int n_merge))
+        {
+            n_merge = math.clamp(n_merge, 1, 10);
+            CellIndex_Bootstrap.CellMergeSize = n_merge;
+        }
+        _inputFieldMergedCellSize.text = CellIndex_Bootstrap.CellMergeSize.ToString();
     }
 }

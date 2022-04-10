@@ -35,8 +35,8 @@ public class Boid : MonoBehaviour
 
         if (!simulation) return;
 
-        var prodThresh = Mathf.Cos(StaticParam.NeighborSearchAngle * Mathf.Deg2Rad);
-        var distThresh = StaticParam.NeighborSearchRange;
+        var prodThresh = Mathf.Cos(param.neighborSearchAngle * Mathf.Deg2Rad);
+        var distThresh = param.neighborSearchRange;
 
         foreach (var other in simulation.boids)
         {

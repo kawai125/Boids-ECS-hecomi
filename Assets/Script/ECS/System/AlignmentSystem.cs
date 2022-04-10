@@ -20,7 +20,7 @@ public partial class AlignmentSystem : SystemBase
     {
         var common_data = new AlignmentDataContiner
         {
-            alignmentWeight = Bootstrap.Param.alignmentWeight,
+            alignmentWeight = BoidParams_Bootstrap.Param.alignmentWeight,
             velocityFromGrovalEntity = GetComponentDataFromEntity<Velocity>(true),  // bool input = is_read_only (default = false)
         };
 

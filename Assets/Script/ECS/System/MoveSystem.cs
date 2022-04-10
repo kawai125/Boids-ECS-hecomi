@@ -13,8 +13,8 @@ public partial class MoveSystem : SystemBase
     protected override void OnUpdate()
     {
         float dt = Time.DeltaTime;
-        float minSpeed = Bootstrap.Param.minSpeed;
-        float maxSpeed = Bootstrap.Param.maxSpeed;
+        float minSpeed = BoidParams_Bootstrap.Param.minSpeed;
+        float maxSpeed = BoidParams_Bootstrap.Param.maxSpeed;
 
         Dependency = Entities.
             WithName("MoveJob").

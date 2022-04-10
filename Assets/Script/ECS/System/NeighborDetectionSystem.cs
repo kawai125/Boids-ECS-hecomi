@@ -52,8 +52,8 @@ public partial class NeighborDetectionSystem_Direct : SystemBase
     {
         var common_data = new NeighborDetectionDataContainer
         {
-            prodThresh = math.cos(math.radians(Bootstrap.NeighborSearchAngle)),
-            distThresh = Bootstrap.NeighborSearchRange,
+            prodThresh = math.cos(math.radians(BoidParams_Bootstrap.Param.neighborSearchAngle)),
+            distThresh = BoidParams_Bootstrap.Param.neighborSearchRange,
 
             positionFromGrobalEntity = GetComponentDataFromEntity<Translation>(true),
 
@@ -123,8 +123,6 @@ public partial class BuildCellIndexSystetm : SystemBase
         CellIndex_Bootstrap.SetJobHandle(this.GetType().Name, Dependency);
 
         Dependency.Complete();
-
-        CellIndex_Bootstrap.UpdateBatchSize();
     }
 }
 
@@ -156,8 +154,8 @@ public partial class NeighborDetectionSystem_CellIndex_Entity_NeighborList : Sys
         //--- search neighbors
         var common_data = new NeighborDetectionDataContainer
         {
-            prodThresh = math.cos(math.radians(Bootstrap.NeighborSearchAngle)),
-            distThresh = Bootstrap.NeighborSearchRange,
+            prodThresh = math.cos(math.radians(BoidParams_Bootstrap.Param.neighborSearchAngle)),
+            distThresh = BoidParams_Bootstrap.Param.neighborSearchRange,
 
             positionFromGrobalEntity = GetComponentDataFromEntity<Translation>(true),
 
@@ -301,8 +299,8 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_NeighborList : Syste
 
         var neighborDetectionJob = new NeighborDetectionJob_Cell_NeighborList()
         {
-            prodThresh = math.cos(math.radians(Bootstrap.NeighborSearchAngle)),
-            distThresh = Bootstrap.NeighborSearchRange,
+            prodThresh = math.cos(math.radians(BoidParams_Bootstrap.Param.neighborSearchAngle)),
+            distThresh = BoidParams_Bootstrap.Param.neighborSearchRange,
 
             positionFromGrobalEntity = GetComponentDataFromEntity<Translation>(true),
             velocityFromGrobalEntity = GetComponentDataFromEntity<Velocity>(true),
@@ -313,7 +311,7 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_NeighborList : Syste
             neighborsFromGrobalEntity = GetBufferFromEntity<NeighborsEntityBuffer>(),
         };
         Dependency = neighborDetectionJob.Schedule(cell_list.Length,
-                                                   CellIndex_Bootstrap.CellBatchSize,
+                                                   CellIndex_Bootstrap.UpdateBatchSize(cell_list.Length),
                                                    Dependency);
 
         CellIndex_Bootstrap.SetJobHandle(this.GetType().Name, Dependency);
@@ -437,8 +435,8 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_Cell : SystemBase
 
         var neighborDetectionJob = new NeighborDetectionJob_Cell_Cell()
         {
-            prodThresh = math.cos(math.radians(Bootstrap.NeighborSearchAngle)),
-            distThresh = Bootstrap.NeighborSearchRange,
+            prodThresh = math.cos(math.radians(BoidParams_Bootstrap.Param.neighborSearchAngle)),
+            distThresh = BoidParams_Bootstrap.Param.neighborSearchRange,
 
             positionFromGrobalEntity = GetComponentDataFromEntity<Translation>(true),
             velocityFromGrobalEntity = GetComponentDataFromEntity<Velocity>(true),
@@ -449,7 +447,7 @@ public partial class NeighborDetectionSystem_CellIndex_Cell_Cell : SystemBase
             neighborsFromGrobalEntity = GetBufferFromEntity<NeighborsEntityBuffer>(),
         };
         Dependency = neighborDetectionJob.Schedule(cell_list.Length,
-                                                   CellIndex_Bootstrap.CellBatchSize,
+                                                   CellIndex_Bootstrap.UpdateBatchSize(cell_list.Length),
                                                    Dependency);
 
         CellIndex_Bootstrap.SetJobHandle(this.GetType().Name, Dependency);
@@ -638,19 +636,18 @@ public partial class NeighborDetectionSystem_CellIndex_Combined_CNL : SystemBase
 
     protected override void OnUpdate()
     {
-
         //--- search neighbors
         var cellIndex = CellIndex_Bootstrap.HashCellIndex;
         cellIndex.GetContainsIndexList(cell_list);
 
         var computeInteractionJob = new NeighborDetectionJob_Combined()
         {
-            prodThresh = math.cos(math.radians(Bootstrap.NeighborSearchAngle)),
-            distThresh = Bootstrap.NeighborSearchRange,
+            prodThresh = math.cos(math.radians(BoidParams_Bootstrap.Param.neighborSearchAngle)),
+            distThresh = BoidParams_Bootstrap.Param.neighborSearchRange,
 
-            alignmentWeight = Bootstrap.Param.alignmentWeight,
-            cohesionWeight = Bootstrap.Param.cohesionWeight,
-            separationWeight = Bootstrap.Param.separationWeight,
+            alignmentWeight = BoidParams_Bootstrap.Param.alignmentWeight,
+            cohesionWeight = BoidParams_Bootstrap.Param.cohesionWeight,
+            separationWeight = BoidParams_Bootstrap.Param.separationWeight,
 
             positionFromGrobalEntity = GetComponentDataFromEntity<Translation>(true),
             velocityFromGrobalEntity = GetComponentDataFromEntity<Velocity>(true),
@@ -662,7 +659,7 @@ public partial class NeighborDetectionSystem_CellIndex_Combined_CNL : SystemBase
         };
 
         Dependency = computeInteractionJob.Schedule(cell_list.Length,
-                                                    CellIndex_Bootstrap.CellBatchSize,
+                                                    CellIndex_Bootstrap.UpdateBatchSize(cell_list.Length),
                                                     Dependency);
 
         CellIndex_Bootstrap.SetJobHandle(this.GetType().Name, Dependency);
@@ -869,19 +866,18 @@ public partial class NeighborDetectionSystem_CellIndex_Combined_CC : SystemBase
 
     protected override void OnUpdate()
     {
-
         //--- search neighbors
         var cellIndex = CellIndex_Bootstrap.HashCellIndex;
         cellIndex.GetContainsIndexList(cell_list);
 
         var computeInteractionJob = new NeighborDetectionJob_Combined()
         {
-            prodThresh = math.cos(math.radians(Bootstrap.NeighborSearchAngle)),
-            distThresh = Bootstrap.NeighborSearchRange,
+            prodThresh = math.cos(math.radians(BoidParams_Bootstrap.Param.neighborSearchAngle)),
+            distThresh = BoidParams_Bootstrap.Param.neighborSearchRange,
 
-            alignmentWeight = Bootstrap.Param.alignmentWeight,
-            cohesionWeight = Bootstrap.Param.cohesionWeight,
-            separationWeight = Bootstrap.Param.separationWeight,
+            alignmentWeight = BoidParams_Bootstrap.Param.alignmentWeight,
+            cohesionWeight = BoidParams_Bootstrap.Param.cohesionWeight,
+            separationWeight = BoidParams_Bootstrap.Param.separationWeight,
 
             positionFromGrobalEntity = GetComponentDataFromEntity<Translation>(true),
             velocityFromGrobalEntity = GetComponentDataFromEntity<Velocity>(true),
@@ -893,8 +889,137 @@ public partial class NeighborDetectionSystem_CellIndex_Combined_CC : SystemBase
         };
 
         Dependency = computeInteractionJob.Schedule(cell_list.Length,
-                                                    CellIndex_Bootstrap.CellBatchSize,
+                                                    CellIndex_Bootstrap.UpdateBatchSize(cell_list.Length),
                                                     Dependency);
+
+        CellIndex_Bootstrap.SetJobHandle(this.GetType().Name, Dependency);
+    }
+}
+
+[UpdateInGroup(typeof(NeighborDetectionSystemGroup))]
+public partial class NeighborDetectionSystem_CellIndex_MergedCell_NeighborList : SystemBase
+{
+    private NativeList<MergedPosIndex> cell_list;
+
+    protected override void OnCreate()
+    {
+        base.OnCreate();
+
+        RequireForUpdate(
+            GetEntityQuery(typeof(BoidType),
+                           typeof(Translation),
+                           typeof(Velocity),
+                           typeof(NeighborsEntityBuffer),
+                           typeof(Tag_ComputeNeighbors_CellIndex_MergedCell_NL)));
+
+        cell_list = new NativeList<MergedPosIndex>(Allocator.Persistent);
+    }
+    protected override void OnDestroy()
+    {
+        base.OnDestroy();
+
+        cell_list.Dispose();
+    }
+
+    [BurstCompile]
+    private struct NeighborDetectionJob_Cell_NeighborList : IJobParallelFor
+    {
+        [ReadOnly] public float prodThresh;
+        [ReadOnly] public float distThresh;
+
+        [ReadOnly]
+        public ComponentDataFromEntity<Translation> positionFromGrobalEntity;
+        [ReadOnly]
+        public ComponentDataFromEntity<Velocity> velocityFromGrobalEntity;
+
+        [ReadOnly]
+        public HashCellIndex<Entity> cellIndex;
+
+        [ReadOnly]
+        public NativeArray<MergedPosIndex> cellList;
+
+        [NativeDisableContainerSafetyRestriction]
+        public BufferFromEntity<NeighborsEntityBuffer> neighborsFromGrobalEntity;
+
+
+        public void Execute(int i_job)
+        {
+            var merged_cell_index = cellList[i_job];
+
+            var entitiesInMergedCell = cellIndex.GetValuesInMergedCell(merged_cell_index, 16, Allocator.Temp);
+            var entitiesForMergedSearch = cellIndex.GetNeighborList(merged_cell_index, distThresh, Boundary.Open, 64, Allocator.Temp);
+            cellIndex.GetNeighborList(merged_cell_index, distThresh, Boundary.Open, entitiesForMergedSearch);
+
+            //--- gather data in cell
+            var positionsInMergedCell = MergedBufferUtility.GatherComponentData(positionFromGrobalEntity,
+                                                                                entitiesInMergedCell,
+                                                                                Allocator.Temp);
+            var velocitiesInMergedCell = MergedBufferUtility.GatherComponentData(velocityFromGrobalEntity,
+                                                                                 entitiesInMergedCell,
+                                                                                 Allocator.Temp);
+
+            //--- gather data for search
+            var positionsForMergedSearch = MergedBufferUtility.GatherComponentData(positionFromGrobalEntity,
+                                                                                   entitiesForMergedSearch,
+                                                                                   Allocator.Temp);
+
+            //--- cell iteration
+            for(int i_cell = 0; i_cell < entitiesInMergedCell.Length; i_cell++)
+            {
+                var entitiesInCell = entitiesInMergedCell[i_cell];
+                var positionsInCell = positionsInMergedCell[i_cell];
+                var velocitiesInCell = velocitiesInMergedCell[i_cell];
+
+                var entitiesForSearch = entitiesForMergedSearch[i_cell];
+                var positionsForSearch = positionsForMergedSearch[i_cell];
+
+                //--- search neighbors by cell to neighbors from cellIndex
+                for (int i_entity = 0; i_entity < entitiesInCell.Length; i_entity++)
+                {
+                    var neighbors = neighborsFromGrobalEntity[entitiesInCell[i_entity]];
+                    neighbors.Clear();
+                    NeighborDetectionFunc.SearchNeighbors(entitiesInCell[i_entity],
+                                                          positionsInCell[i_entity].Value,
+                                                          math.normalize(velocitiesInCell[i_entity].Value),
+                                                          distThresh,
+                                                          prodThresh,
+                                                          entitiesForSearch,
+                                                          positionsForSearch,
+                                                          neighbors);
+                }
+            }
+
+            entitiesInMergedCell.Dispose();
+            positionsInMergedCell.Dispose();
+            velocitiesInMergedCell.Dispose();
+
+            entitiesForMergedSearch.Dispose();
+            positionsForMergedSearch.Dispose();
+        }
+    }
+
+    protected override void OnUpdate()
+    {
+        //--- search neighbors
+        var cellIndex = CellIndex_Bootstrap.HashCellIndex;
+        cellIndex.GetContainsMergedCellList(CellIndex_Bootstrap.CellMergeSize, cell_list);
+
+        var neighborDetectionJob = new NeighborDetectionJob_Cell_NeighborList()
+        {
+            prodThresh = math.cos(math.radians(BoidParams_Bootstrap.Param.neighborSearchAngle)),
+            distThresh = BoidParams_Bootstrap.Param.neighborSearchRange,
+
+            positionFromGrobalEntity = GetComponentDataFromEntity<Translation>(true),
+            velocityFromGrobalEntity = GetComponentDataFromEntity<Velocity>(true),
+
+            cellIndex = cellIndex,
+            cellList = cell_list,
+
+            neighborsFromGrobalEntity = GetBufferFromEntity<NeighborsEntityBuffer>(),
+        };
+        Dependency = neighborDetectionJob.Schedule(cell_list.Length,
+                                                   CellIndex_Bootstrap.UpdateBatchSize(cell_list.Length),
+                                                   Dependency);
 
         CellIndex_Bootstrap.SetJobHandle(this.GetType().Name, Dependency);
     }
