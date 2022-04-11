@@ -8,7 +8,7 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
 
-using Domain;
+using HashCellIndex;
 
 public class CellIndex_Bootstrap : MonoBehaviour
 {

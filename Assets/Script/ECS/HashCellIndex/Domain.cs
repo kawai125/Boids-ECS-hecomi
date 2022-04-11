@@ -4,7 +4,7 @@ using UnityEngine;
 
 using Unity.Mathematics;
 
-namespace Domain
+namespace HashCellIndex
 {
     [Flags]
     public enum BoundaryCondition

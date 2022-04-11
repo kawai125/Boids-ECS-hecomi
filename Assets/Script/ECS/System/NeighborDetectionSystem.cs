@@ -10,7 +10,7 @@ using Unity.Mathematics;
 using Unity.Jobs;
 using Unity.Burst;
 
-using Domain;
+using HashCellIndex;
 
 
 [UpdateInGroup(typeof(NeighborDetectionSystemGroup))]
@@ -941,37 +941,34 @@ public partial class NeighborDetectionSystem_CellIndex_MergedCell_NeighborList :
         [NativeDisableContainerSafetyRestriction]
         public BufferFromEntity<NeighborsEntityBuffer> neighborsFromGrobalEntity;
 
-
         public void Execute(int i_job)
         {
             var merged_cell_index = cellList[i_job];
 
-            var entitiesInMergedCell = cellIndex.GetValuesInMergedCell(merged_cell_index, 16, Allocator.Temp);
-            var entitiesForMergedSearch = cellIndex.GetNeighborList(merged_cell_index, distThresh, Boundary.Open, 64, Allocator.Temp);
-            cellIndex.GetNeighborList(merged_cell_index, distThresh, Boundary.Open, entitiesForMergedSearch);
+            //--- gather data
+            var entitiesForMergedSearch = cellIndex.GetMergedNeighborList(merged_cell_index,
+                                                                          distThresh,
+                                                                          Boundary.Open,
+                                                                          64, Allocator.Temp);
 
-            //--- gather data in cell
-            var positionsInMergedCell = MergedBufferUtility.GatherComponentData(positionFromGrobalEntity,
-                                                                                entitiesInMergedCell,
-                                                                                Allocator.Temp);
-            var velocitiesInMergedCell = MergedBufferUtility.GatherComponentData(velocityFromGrobalEntity,
-                                                                                 entitiesInMergedCell,
+            var positionsForMergedSearch = MergedCellUtility.GatherComponentData(positionFromGrobalEntity,
+                                                                                 entitiesForMergedSearch,
                                                                                  Allocator.Temp);
 
-            //--- gather data for search
-            var positionsForMergedSearch = MergedBufferUtility.GatherComponentData(positionFromGrobalEntity,
-                                                                                   entitiesForMergedSearch,
-                                                                                   Allocator.Temp);
+            var entitiesInMergedCell = entitiesForMergedSearch.ExtractMergedCell(Allocator.Temp);
+            var velocitiesInMergedCell = MergedCellUtility.GatherComponentData(velocityFromGrobalEntity,
+                                                                               entitiesInMergedCell,
+                                                                               Allocator.Temp);
 
             //--- cell iteration
             for(int i_cell = 0; i_cell < entitiesInMergedCell.Length; i_cell++)
             {
-                var entitiesInCell = entitiesInMergedCell[i_cell];
-                var positionsInCell = positionsInMergedCell[i_cell];
-                var velocitiesInCell = velocitiesInMergedCell[i_cell];
+                var entitiesInCell = entitiesInMergedCell.GetCell(i_cell);
+                var positionsInCell = positionsForMergedSearch.GetCell(i_cell);
+                var velocitiesInCell = velocitiesInMergedCell.GetCell(i_cell);
 
-                var entitiesForSearch = entitiesForMergedSearch[i_cell];
-                var positionsForSearch = positionsForMergedSearch[i_cell];
+                var entitiesForSearch = entitiesForMergedSearch.GetNeighbors(i_cell);
+                var positionsForSearch = positionsForMergedSearch.GetNeighbors(i_cell);
 
                 //--- search neighbors by cell to neighbors from cellIndex
                 for (int i_entity = 0; i_entity < entitiesInCell.Length; i_entity++)
@@ -989,12 +986,11 @@ public partial class NeighborDetectionSystem_CellIndex_MergedCell_NeighborList :
                 }
             }
 
-            entitiesInMergedCell.Dispose();
-            positionsInMergedCell.Dispose();
-            velocitiesInMergedCell.Dispose();
-
             entitiesForMergedSearch.Dispose();
             positionsForMergedSearch.Dispose();
+
+            entitiesInMergedCell.Dispose();
+            velocitiesInMergedCell.Dispose();
         }
     }
 

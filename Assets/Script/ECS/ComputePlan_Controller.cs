@@ -134,7 +134,7 @@ public class ComputePlan_Controller : MonoBehaviour
     {
         if(int.TryParse(str, out int n_merge))
         {
-            n_merge = math.clamp(n_merge, 1, 10);
+            n_merge = math.clamp(n_merge, 1, 20);
             CellIndex_Bootstrap.CellMergeSize = n_merge;
         }
         _inputFieldMergedCellSize.text = CellIndex_Bootstrap.CellMergeSize.ToString();
