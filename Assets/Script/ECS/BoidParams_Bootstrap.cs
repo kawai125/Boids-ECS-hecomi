@@ -115,6 +115,7 @@ public class BoidParams_Bootstrap : MonoBehaviour
 
 
         inputVortexIntensity.text = Param.vortexIntensity.ToString();
+        inputVortexIntensity.onEndEdit.AddListener(UpdateVortexIntensity);
     }
 
     public void UpdateInitSpeed(string str)

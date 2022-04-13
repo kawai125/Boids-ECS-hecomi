@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Diagnostics;
 using UnityEngine;
 
 using Unity.Mathematics;
@@ -38,13 +38,13 @@ namespace HashCellIndex
         }
     }
 
-    public struct Box
+    public readonly struct Box
     {
-        public float3 Lo { get; }
-        public float3 Hi { get; }
-        public float3 Center { get; }
-        public float3 Size { get; }
-        public float3 SizeInv { get; }
+        public readonly float3 Lo { get; }
+        public readonly float3 Hi { get; }
+        public readonly float3 Center { get; }
+        public readonly float3 Size { get; }
+        public readonly float3 SizeInv { get; }
 
         public Box(float3 lo, float3 hi)
         {
@@ -74,6 +74,8 @@ namespace HashCellIndex
         /// <returns>adjust into [box.Lo,box.Hi)</returns>
         public float3 ApplyPeriadicBoundary(float3 pos)
         {
+            CheckPosRangeForPeriodicBoundary(pos, Lo - Size, Hi + Size, Boundary.Periodic_XYZ);
+
             var ret = pos;
             if (ret.x < Lo.x) ret.x += Size.x;
             if (ret.y < Lo.y) ret.y += Size.y;
@@ -89,6 +91,8 @@ namespace HashCellIndex
         /// <returns>adjust into [box.Lo,box.Hi)</returns>
         public float3 ApplyPeriadicBoundary(float3 pos, BoundaryCondition boundary)
         {
+            CheckPosRangeForPeriodicBoundary(pos, Lo - Size, Hi + Size, boundary);
+
             var ret = pos;
             if (boundary.IsMatch(BoundaryCondition.Periodic_X))
             {
@@ -113,21 +117,23 @@ namespace HashCellIndex
         /// <returns>adjust into [-0.5,0.5) of box.Size</returns>
         public float3 GetDisplacement(float3 displacement, BoundaryCondition boundary)
         {
+            CheckPosRangeForPeriodicBoundary(displacement, Center - Size, Center + Size, boundary);
+
             var ret = displacement;
             var range = Center - Lo;
             if (boundary.IsMatch(BoundaryCondition.Periodic_X))
             {
-                if (ret.x < range.x) ret.x += Size.x;
+                if (ret.x < -range.x) ret.x += Size.x;
                 if (ret.x >= range.x) ret.x -= Size.x;
             }
             if (boundary.IsMatch(BoundaryCondition.Periodic_Y))
             {
-                if (ret.y < range.y) ret.y += Size.y;
+                if (ret.y < -range.y) ret.y += Size.y;
                 if (ret.y >= range.y) ret.y -= Size.y;
             }
             if (boundary.IsMatch(BoundaryCondition.Periodic_Z))
             {
-                if (ret.z < range.z) ret.z += Size.z;
+                if (ret.z < -range.z) ret.z += Size.z;
                 if (ret.z >= range.z) ret.z -= Size.z;
             }
             return ret;
@@ -138,17 +144,48 @@ namespace HashCellIndex
         {
             return $"(Lo({Lo.x}, {Lo.y}, {Lo.z}) - Hi({Hi.x}, {Hi.y}, {Hi.z}))";
         }
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        private static void CheckPosRangeForPeriodicBoundary(float3 pos, float3 lo_limit, float3 hi_limit, BoundaryCondition boundary)
+        {
+            bool is_valid = true;
+            if (boundary.IsMatch(BoundaryCondition.Periodic_X))
+            {
+                if (pos.x < lo_limit.x ||
+                    pos.x >= hi_limit.x) is_valid = false;
+            }
+            if (boundary.IsMatch(BoundaryCondition.Periodic_Y))
+            {
+                if (pos.y < lo_limit.y ||
+                    pos.y >= hi_limit.y) is_valid = false;
+            }
+            if (boundary.IsMatch(BoundaryCondition.Periodic_Z))
+            {
+                if (pos.z < lo_limit.z ||
+                    pos.z >= hi_limit.z) is_valid = false;
+            }
+            if (!is_valid)
+                throw new ArgumentOutOfRangeException($"pos={pos} was out of range for convertion.");
+        }
     }
 
     public struct PosIndex : IEquatable<PosIndex>
     {
-        public int ix, iy, iz;
+        public int3 index;
+
+        public int ix { get { return index.x; } set { index.x = value; } }
+        public int iy { get { return index.y; } set { index.y = value; } }
+        public int iz { get { return index.z; } set { index.z = value; } }
 
         public PosIndex(int ix, int iy, int iz)
         {
-            this.ix = ix;
-            this.iy = iy;
-            this.iz = iz;
+            index.x = ix;
+            index.y = iy;
+            index.z = iz;
+        }
+        public PosIndex(int3 new_index)
+        {
+            index = new_index;
         }
 
         public float3 GetCenterPos(Box box, PosIndex gridSize)
@@ -175,13 +212,21 @@ namespace HashCellIndex
             return hash;
         }
 
-        public static PosIndex operator +(PosIndex lhs, PosIndex rhs)
+        public static PosIndex operator + (PosIndex lhs, PosIndex rhs)
         {
             return new PosIndex(lhs.ix + rhs.ix, lhs.iy + rhs.iy, lhs.iz + rhs.iz);
         }
-        public static PosIndex operator -(PosIndex lhs, PosIndex rhs)
+        public static PosIndex operator - (PosIndex lhs, PosIndex rhs)
         {
             return new PosIndex(lhs.ix - rhs.ix, lhs.iy - rhs.iy, lhs.iz - rhs.iz);
+        }
+        public static PosIndex operator * (PosIndex lhs, int n)
+        {
+            return new PosIndex(lhs.ix * n, lhs.iy * n, lhs.iz * n);
+        }
+        public static PosIndex operator * (int n, PosIndex rhs)
+        {
+            return new PosIndex(rhs.ix * n, rhs.iy * n, rhs.iz * n);
         }
         public static PosIndex Zero { get { return new PosIndex(0, 0, 0); } }
         public override string ToString()

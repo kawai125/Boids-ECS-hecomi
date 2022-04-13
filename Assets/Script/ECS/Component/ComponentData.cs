@@ -13,9 +13,11 @@ public struct Acceleration : IComponentData
 }
 
 [InternalBufferCapacity(12)]
-public struct NeighborsEntityBuffer : IBufferElementData
+public struct NeighborsEntityBuffer : IBufferElementData, IEquatable<NeighborsEntityBuffer>
 {
     public Entity entity;
+
+    public bool Equals(NeighborsEntityBuffer rhs) { return entity.Equals(rhs.entity); }
 }
 
 public struct BoidsSpawner : IComponentData
