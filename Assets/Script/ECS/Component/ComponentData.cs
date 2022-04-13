@@ -18,6 +18,10 @@ public struct NeighborsEntityBuffer : IBufferElementData, IEquatable<NeighborsEn
     public Entity entity;
 
     public bool Equals(NeighborsEntityBuffer rhs) { return entity.Equals(rhs.entity); }
+    public override string ToString()
+    {
+        return entity.ToString();
+    }
 }
 
 public struct BoidsSpawner : IComponentData

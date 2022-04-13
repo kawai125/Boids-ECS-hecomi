@@ -9,7 +9,7 @@ using Unity.Mathematics;
 namespace HashCellIndex
 {
     public struct HashCellIndex<T> : IDisposable
-        where T : unmanaged
+        where T : unmanaged, IEquatable<T>
     {
         internal PtrHandle<CellIndexInfo> _info;
         internal NativeMultiHashMap<PosIndex, T> _map;
@@ -443,8 +443,31 @@ namespace HashCellIndex
                     }
                 }
 
-                //--- load neighborlist (naive)
-                buffer._info.Target->neighborsOffset = buffer._bufferIndex.Length;
+                buffer.BuildNeighborListFromCache();
+
+
+                //--- validate with naive implementation
+                var ref_mnl = new MergedNeighborList<T>(buffer._bufferIndex.Capacity, buffer._buffer.Capacity, Allocator.Temp);
+                ref_mnl._info.Target->localGrid = target;
+                ref_mnl._info.Target->indexRange = index_range;
+                ref_mnl._info.Target->n_cell = target.Length;
+
+                for (int i = 0; i < ref_mnl.Length; i++)
+                {
+                    int start = ref_mnl._buffer.Length;
+                    var index = ref_mnl.GetIndex(i);
+
+                    GetMappedData(index, map, ref ref_mnl._buffer);
+
+                    var range = new MergedNeighborList<T>.BufferRange
+                    {
+                        start = start,
+                        length = ref_mnl._buffer.Length - start
+                    };
+                    ref_mnl._bufferIndex.Add(range);
+                }
+
+                ref_mnl._info.Target->neighborsOffset = ref_mnl._bufferIndex.Length;
                 for (int iz = target.Lo.iz; iz < target.Hi.iz; iz++)
                 {
                     for (int iy = target.Lo.iy; iy < target.Hi.iy; iy++)
@@ -453,21 +476,132 @@ namespace HashCellIndex
                         {
                             var index_cell = new PosIndex(ix, iy, iz);
 
-                            int start = buffer._buffer.Length;
+                            int start = ref_mnl._buffer.Length;
 
-                            GetNeighborListImpl(index_cell, index_range, boundary, map, ref buffer._buffer);
+                            GetNeighborListImpl(index_cell, index_range, boundary, map, ref ref_mnl._buffer);
 
                             var range = new MergedNeighborList<T>.BufferRange
                             {
                                 start = start,
-                                length = buffer._buffer.Length - start
+                                length = ref_mnl._buffer.Length - start
                             };
-                            buffer._bufferIndex.Add(range);
+                            ref_mnl._bufferIndex.Add(range);
                         }
                     }
                 }
 
-                //buffer.BuildNeighborListFromCache();
+                ValidateMergedNeighborList(buffer, ref_mnl);
+            }
+            private unsafe void ValidateMergedNeighborList(MergedNeighborList<T> buffer,
+                                                           MergedNeighborList<T> ref_mnl)
+            {
+                bool is_valid = true;
+                var sb = new System.Text.StringBuilder();
+                if (buffer.Length != ref_mnl.Length)
+                {
+                    is_valid = false;
+                    sb.Append($"n_cell was differ. tgt={buffer.Length}, ref={ref_mnl.Length}\n");
+                }
+                for (int i_cell = 0; i_cell < ref_mnl.Length; i_cell++)
+                {
+                    var index_global = buffer.GetIndex(i_cell);
+                    sb.Append($"i_cell={i_cell}");
+                    sb.Append($", cache index={index_global - buffer._info.Target->localGrid.Lo + buffer._info.Target->indexRange}");
+                    sb.Append($", global index={index_global}:\n");
+
+                    var tgt_cell = buffer.GetCell(i_cell);
+                    var ref_cell = ref_mnl.GetCell(i_cell);
+
+                    if (tgt_cell.Length != ref_cell.Length)
+                    {
+                        is_valid = false;
+                        sb.Append($"  cell.Length was differ. tgt={tgt_cell.Length}, ref={ref_cell.Length}:\n");
+                    }
+                    for (int i = 0; i < ref_cell.Length; i++)
+                    {
+                        var value = ref_cell[i];
+                        if (!tgt_cell.Contains(value))
+                        {
+                            is_valid = false;
+                            sb.Append($"  ref[{i}]={value} is not found in tgt_cell. in cache: {SearchTargetFromCache(buffer, value)}\n");
+                        }
+                    }
+                    for (int i = 0; i < tgt_cell.Length; i++)
+                    {
+                        var value = tgt_cell[i];
+                        if (!ref_cell.Contains(value))
+                        {
+                            is_valid = false;
+                            sb.Append($"  tgt[{i}]={value} is error. in cache: {SearchTargetFromCache(buffer, value)}\n");
+                        }
+                    }
+
+                    var tgt_neighbors = buffer.GetNeighbors(i_cell);
+                    var ref_neighbors = ref_mnl.GetNeighbors(i_cell);
+
+                    if(tgt_neighbors.Length != ref_neighbors.Length)
+                    {
+                        is_valid = false;
+                        sb.Append($"  neighbors.Length was differ. tgt={tgt_neighbors.Length}, ref={ref_neighbors.Length}:\n");
+                    }
+                    for (int i = 0; i < ref_neighbors.Length; i++)
+                    {
+                        var value = ref_neighbors[i];
+                        if (!tgt_neighbors.Contains(value))
+                        {
+                            is_valid = false;
+                            sb.Append($"  ref[{i}]={value} is not found in tgt_neighbors. in cache: {SearchTargetFromCache(buffer, value)}\n");
+                        }
+                    }
+                    for (int i = 0; i < tgt_neighbors.Length; i++)
+                    {
+                        var value = tgt_neighbors[i];
+                        if (!ref_neighbors.Contains(value))
+                        {
+                            is_valid = false;
+                            sb.Append($"  tgt[{i}]={value} is error. in cache: {SearchTargetFromCache(buffer, value)}\n");
+                        }
+                    }
+                }
+
+                if (!is_valid)
+                {
+                    sb.Append($"\nMergedNeighborList<T> target:\n{buffer}");
+                    sb.Append($"\nMergedNeighborList<T> ref:\n{ref_mnl}");
+                    throw new InvalidProgramException(sb.ToString());
+                }
+            }
+            private unsafe string SearchTargetFromCache(MergedNeighborList<T> buffer, T tgt)
+            {
+                var cacheGrid = buffer._info.Target->cacheGrid;
+                if (buffer._info.Target->cellsOffset <= 0 ||
+                    buffer._info.Target->cellsOffset != cacheGrid.ix * cacheGrid.iy * cacheGrid.iz)
+                    return "not found";
+
+                int i_cache = 0;
+                for (int iz = 0; iz < cacheGrid.iz; iz++)
+                {
+                    for (int iy = 0; iy < cacheGrid.iy; iy++)
+                    {
+                        for (int ix = 0; ix < cacheGrid.ix; ix++)
+                        {
+                            var range = buffer._bufferIndex[i_cache];
+                            for(int i_buffer = range.start; i_buffer < range.end; i_buffer++)
+                            {
+                                if (tgt.Equals(buffer._buffer[i_buffer]))
+                                {
+                                    var index = new PosIndex(ix, iy, iz);
+                                    var sb = new System.Text.StringBuilder();
+                                    sb.Append($"[i={i_cache}, cache index={index}");
+                                    sb.Append($" global index={index - buffer._info.Target->indexRange + buffer._info.Target->localGrid.Lo}");
+                                    return sb.ToString();
+                                }
+                            }
+                            i_cache++;
+                        }
+                    }
+                }
+                return "not found";
             }
             internal static void GetGridIndexListImpl(PosIndex gridSize,
                                                       NativeList<PosIndex> list)

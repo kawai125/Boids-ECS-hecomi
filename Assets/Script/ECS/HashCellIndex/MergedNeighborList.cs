@@ -37,7 +37,7 @@ namespace HashCellIndex
                 int iz = i_cell / z_stride;
                 int iy = (i_cell - z_stride * iz) / y_stride;
                 int ix = (i_cell - z_stride * iz - y_stride * iy);
-                return new PosIndex { ix = ix, iy = iy, iz = iz };
+                return new PosIndex { ix = ix, iy = iy, iz = iz } + Lo;
             }
         }
 
@@ -89,6 +89,8 @@ namespace HashCellIndex
         {
             internal int start, length;
 
+            internal int end { get { return start + length; } }
+
             public override string ToString()
             {
                 return $"[start={start}, length={length}]";
@@ -133,18 +135,19 @@ namespace HashCellIndex
         /// <returns>PosIndex(ix, iy, iz)</returns>
         public PosIndex GetIndex(int i_cell) { return _info.Target->localGrid[i_cell]; }
 
-        public void SetGridInfo(MergedPosIndex localGrid, PosIndex cacheGrid, PosIndex inddexRange)
+        public void SetGridInfo(MergedPosIndex localGrid, PosIndex cacheGridSize, PosIndex inddexRange)
         {
             _info.Target->Clear();
 
             _info.Target->localGrid = localGrid;
-            _info.Target->cacheGrid = cacheGrid;
+            _info.Target->cacheGrid = cacheGridSize;
             _info.Target->indexRange = inddexRange;
 
             _info.Target->n_cell = localGrid.Length;
 
-            int n_cache = cacheGrid.ix * cacheGrid.iy * cacheGrid.iz;
+            int n_cache = cacheGridSize.ix * cacheGridSize.iy * cacheGridSize.iz;
             _info.Target->cellsOffset = n_cache;
+            _buffer.Clear();
             _bufferIndex.ResizeUninitialized(n_cache);
         }
 
@@ -213,65 +216,52 @@ namespace HashCellIndex
         {
             _info.Target->neighborsOffset = _bufferIndex.Length;
 
-            //var local_grid = _info.Target->localGrid;
-            //var index_range = _info.Target->indexRange;
-
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            var cache_grid = _info.Target->cacheGrid;
-            if (cache_grid.ix * cache_grid.iy * cache_grid.iz != _info.Target->cellsOffset)
+            if (_info.Target->cacheGrid.ix *
+                _info.Target->cacheGrid.iy *
+                _info.Target->cacheGrid.iz != _info.Target->cellsOffset)
                 throw new InvalidProgramException("stored cache size was invalid.");
 #endif
 
             //--- localGrid: a part of global grid,
             //    cacheGrid: shows size only (always [0,0,0] start). origins are differ.
             //    displacement of origin = indexRange.
-            var internal_cells = new MergedPosIndex
+            var internal_cell_lo = _info.Target->indexRange;
+            var internal_cell_hi = _info.Target->cacheGrid - _info.Target->indexRange;
+            for(int iz = internal_cell_lo.iz; iz < internal_cell_hi.iz; iz++)
             {
-                Lo = _info.Target->indexRange,
-                Hi = _info.Target->localGrid.Hi - _info.Target->localGrid.Lo + _info.Target->indexRange,
-            };
-            for (int ix = internal_cells.Lo.ix; ix < internal_cells.Hi.ix; ix++)
-            {
-                for (int iy = internal_cells.Lo.iy; iy < internal_cells.Hi.iy; iy++)
+                for (int iy = internal_cell_lo.iy; iy < internal_cell_hi.iy; iy++)
                 {
-                    //BuildNeighborListWithCompressZAxis(ix, iy, internal_cells.Lo.iz, internal_cells.Hi.iz);
-
-                    ///*
-                    for (int iz = internal_cells.Lo.iz; iz < internal_cells.Hi.iz; iz++)
+                    for (int ix = internal_cell_lo.ix; ix < internal_cell_hi.ix; ix++)
                     {
                         var index_cell = new PosIndex(ix, iy, iz);
+                        int b_start = _buffer.Length;
+
                         var neighbor_lo = index_cell - _info.Target->indexRange;
                         var neighbor_hi = index_cell + _info.Target->indexRange;
 
-                        //UnityEngine.Debug.Log($"cell={index_cell}, neighbors cell: [{neighbor_lo}, {neighbor_hi}), buffer.Length={_buffer.Length}");
-
-                        int start = _buffer.Length;
-
-                        for (int i_nz = neighbor_lo.iz; i_nz <= neighbor_hi.iz; i_nz++)
+                        for(int i_nx = neighbor_lo.ix; i_nx <= neighbor_hi.ix; i_nx++)
                         {
                             for (int i_ny = neighbor_lo.iy; i_ny <= neighbor_hi.iy; i_ny++)
                             {
-                                for (int i_nx = neighbor_lo.ix; i_nx <= neighbor_hi.ix; i_nx++)
+                                for (int i_nz = neighbor_lo.iz; i_nz <= neighbor_hi.iz; i_nz++)
                                 {
                                     int i_cache = i_nx
-                                                + i_ny * cache_grid.ix
-                                                + i_nz * cache_grid.ix * cache_grid.iy;
-
+                                                + i_ny * _info.Target->cacheGrid.ix
+                                                + i_nz * _info.Target->cacheGrid.iy * _info.Target->cacheGrid.ix;
                                     var range = _bufferIndex[i_cache];
-                                    //if(range.length > 0) UnityEngine.Debug.Log($"cell={index_cell}, tgt=[{i_nx}, {i_ny}, {i_nz}], i_cache={i_cache}, range={range}, buffer.Length={_buffer.Length}");
                                     DomesticAppend(_buffer, range.start, range.length);
                                 }
                             }
                         }
 
-                        var neighborlist_range = new BufferRange
+                        var list_range = new BufferRange
                         {
-                            start = start,
-                            length = _buffer.Length - start
+                            start = b_start,
+                            length = _buffer.Length - b_start,
                         };
-                        _bufferIndex.Add(neighborlist_range);
+                        _bufferIndex.Add(list_range);
                     }
-                    //*/
                 }
             }
         }
@@ -378,7 +368,7 @@ namespace HashCellIndex
                       * (cache_neighbor_ratio.x *
                          cache_neighbor_ratio.y *
                          cache_neighbor_ratio.z
-                         + merge_size.ix * merge_size.iy * cache_neighbor_ratio.z); // compress neighborlist for z axis
+                         + merge_size.iy * merge_size.iz * cache_neighbor_ratio.x); // compress neighborlist for x axis
             buffer_capacity = (int)cap + 1;
         }
 
@@ -401,10 +391,15 @@ namespace HashCellIndex
             var sb = new System.Text.StringBuilder();
 
             sb.Append($"LocalGrid={_info.Target->localGrid}\n");
-            sb.Append($"CacheGrid={_info.Target->cacheGrid}");
-            sb.Append($", LocalGrid: [{_info.Target->localGrid.Lo - _info.Target->indexRange}, {_info.Target->localGrid.Hi - _info.Target->indexRange})\n");
+            if(_info.Target->cellsOffset > 0)
+            {
+                sb.Append($"CacheSize={_info.Target->cacheGrid}");
+                sb.Append($", InGlobalGrid: [{_info.Target->localGrid.Lo - _info.Target->indexRange}");
+                sb.Append($", {_info.Target->localGrid.Hi + _info.Target->indexRange})\n");
+            }
             sb.Append($"IndexRange={_info.Target->indexRange}\n");
-            sb.Append($"cells offset={_info.Target->cellsOffset}, neighbors offset={_info.Target->neighborsOffset}, n_cell={_info.Target->n_cell}\n");
+            sb.Append($"cells offset={_info.Target->cellsOffset}, neighbors offset={_info.Target->neighborsOffset}");
+            sb.Append($", n_cell={_info.Target->n_cell}\n");
 
             sb.Append($"len buffer={_buffer.Length}\n");
             sb.Append($"len bufferIndex={_bufferIndex.Length}\n");
@@ -412,13 +407,19 @@ namespace HashCellIndex
             sb.Append($"\n  internal caches:\n");
             for (int i = 0; i < _info.Target->cellsOffset; i++)
             {
-                sb.Append($"  i={i}, range={_bufferIndex[i]}\n");
+                sb.Append($"  i={i}, range={_bufferIndex[i]}");
+                var range = _bufferIndex[i];
+                for (int j = range.start; j < range.end; j++) sb.Append($", {_buffer[j]}");
+                sb.Append("\n");
             }
 
             sb.Append($"\n  ref to cells:\n");
             for (int i = _info.Target->cellsOffset; i < _info.Target->neighborsOffset; i++)
             {
-                sb.Append($"  i={i}, range={_bufferIndex[i]}\n");
+                sb.Append($"  i={i}, range={_bufferIndex[i]}");
+                var range = _bufferIndex[i];
+                for (int j = range.start; j < range.end; j++) sb.Append($", {_buffer[j]}");
+                sb.Append("\n");
             }
 
             if(_info.Target->neighborsOffset > 0)
@@ -426,7 +427,10 @@ namespace HashCellIndex
                 sb.Append($"\n  ref to neighborlists:\n");
                 for (int i = _info.Target->neighborsOffset; i < _bufferIndex.Length; i++)
                 {
-                    sb.Append($"  i={i}, range={_bufferIndex[i]}\n");
+                    sb.Append($"  i={i - _info.Target->neighborsOffset}, range={_bufferIndex[i]}");
+                    var range = _bufferIndex[i];
+                    for (int j = range.start; j < range.end; j++) sb.Append($", {_buffer[j]}");
+                    sb.Append("\n");
                 }
             }
 
