@@ -65,19 +65,13 @@ namespace HashCellIndex
     internal struct MergedBufferInfo
     {
         internal MergedPosIndex localGrid;
-        internal PosIndex cacheGrid;
         internal PosIndex indexRange;
-        internal int cellsOffset;
-        internal int neighborsOffset;
-        internal int n_cell;
+        internal int n_cell;  // = neighborsOffset
 
         internal void Clear()
         {
             localGrid = MergedPosIndex.Invalid;
-            cacheGrid = PosIndex.Zero;
             indexRange = PosIndex.Zero;
-            cellsOffset = 0;
-            neighborsOffset = 0;
             n_cell = 0;
         }
     }
@@ -135,20 +129,15 @@ namespace HashCellIndex
         /// <returns>PosIndex(ix, iy, iz)</returns>
         public PosIndex GetIndex(int i_cell) { return _info.Target->localGrid[i_cell]; }
 
-        public void SetGridInfo(MergedPosIndex localGrid, PosIndex cacheGridSize, PosIndex inddexRange)
+        public void SetGridInfo(MergedPosIndex localGrid, PosIndex indexRange)
         {
             _info.Target->Clear();
 
             _info.Target->localGrid = localGrid;
-            _info.Target->cacheGrid = cacheGridSize;
-            _info.Target->indexRange = inddexRange;
+            _info.Target->indexRange = indexRange;
 
-            _info.Target->n_cell = localGrid.Length;
-
-            int n_cache = cacheGridSize.ix * cacheGridSize.iy * cacheGridSize.iz;
-            _info.Target->cellsOffset = n_cache;
             _buffer.Clear();
-            _bufferIndex.ResizeUninitialized(n_cache);
+            _bufferIndex.Clear();
         }
 
 
@@ -157,7 +146,7 @@ namespace HashCellIndex
         public NativeArray<T> GetCell(int i_cell)
         {
             CheckIndex(i_cell, Length);
-            var range = _bufferIndex[i_cell + _info.Target->cellsOffset];
+            var range = _bufferIndex[i_cell];
             return _buffer.AsArray().GetSubArray(range.start, range.length);
         }
         public NativeArray<T> GetCell(PosIndex index)
@@ -170,7 +159,7 @@ namespace HashCellIndex
         public NativeArray<T> GetNeighbors(int i_cell)
         {
             CheckIndex(i_cell, Length);
-            var range = _bufferIndex[i_cell + _info.Target->neighborsOffset];
+            var range = _bufferIndex[i_cell + _info.Target->n_cell];
             return _buffer.AsArray().GetSubArray(range.start, range.length);
         }
         public NativeArray<T> GetNeighbors(PosIndex index)
@@ -184,7 +173,7 @@ namespace HashCellIndex
         {
             int n_cell = _info.Target->n_cell;
             var mc = new MergedCell<T>(n_cell,
-                                       _bufferIndex[_info.Target->cellsOffset].start,  // not equal but enough capacity.
+                                       _bufferIndex[_info.Target->n_cell].start,  // not equal but enough capacity.
                                        alloc);
             mc._cells._info.Target->localGrid = _info.Target->localGrid;
             mc._cells._info.Target->n_cell = n_cell;
@@ -220,129 +209,6 @@ namespace HashCellIndex
             _bufferIndex.Add(new BufferRange { start = start, length = length });
         }
 
-        internal void BuildNeighborListFromCache()
-        {
-            _info.Target->neighborsOffset = _bufferIndex.Length;
-
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            if (_info.Target->cacheGrid.ix *
-                _info.Target->cacheGrid.iy *
-                _info.Target->cacheGrid.iz != _info.Target->cellsOffset)
-                throw new InvalidProgramException("stored cache size was invalid.");
-#endif
-
-            //--- localGrid: a part of global grid,
-            //    cacheGrid: shows size only (always [0,0,0] start). origins are differ.
-            //    displacement of origin = indexRange.
-            var internal_cell_lo = _info.Target->indexRange;
-            var internal_cell_hi = _info.Target->cacheGrid - _info.Target->indexRange;
-            for(int iz = internal_cell_lo.iz; iz < internal_cell_hi.iz; iz++)
-            {
-                for (int iy = internal_cell_lo.iy; iy < internal_cell_hi.iy; iy++)
-                {
-                    BuildNeighborListImplWithCompressXAxis(iy, iz, internal_cell_lo.ix, internal_cell_hi.ix);
-
-                    //BuildNeighborListImplNaive(iy, iz, internal_cell_lo.ix, internal_cell_hi.ix);
-                }
-            }
-        }
-        private void BuildNeighborListImplNaive(in int iy, in int iz, in int x_start, in int x_end)
-        {
-            for (int ix = x_start; ix < x_end; ix++)
-            {
-                var index_cell = new PosIndex(ix, iy, iz);
-                int b_start = _buffer.Length;
-
-                var neighbor_lo = index_cell - _info.Target->indexRange;
-                var neighbor_hi = index_cell + _info.Target->indexRange;
-
-                for (int i_nx = neighbor_lo.ix; i_nx <= neighbor_hi.ix; i_nx++)
-                {
-                    WriteCached_YZ_PlaneIntoBuffer(i_nx, neighbor_lo, neighbor_hi);
-                }
-
-                var list_range = new BufferRange
-                {
-                    start = b_start,
-                    length = _buffer.Length - b_start,
-                };
-                _bufferIndex.Add(list_range);
-            }
-        }
-        private void BuildNeighborListImplWithCompressXAxis(in int iy, in int iz, in int x_start, in int x_end)
-        {
-            var startInBuffer = new NativeList<int>(x_end - x_start + _info.Target->indexRange.ix * 2, Allocator.Temp);
-            startInBuffer.Add(_buffer.Length);
-
-            //--- set first part
-            {
-                int ix = x_start;
-
-                var index_cell = new PosIndex(ix, iy, iz);
-                var neighbor_lo = index_cell - _info.Target->indexRange;
-                var neighbor_hi = index_cell + _info.Target->indexRange;
-
-                //--- record start point for dupricate with next
-                for (int i_nx = neighbor_lo.ix; i_nx <= neighbor_hi.ix; i_nx++)
-                {
-                    WriteCached_YZ_PlaneIntoBuffer(i_nx, neighbor_lo, neighbor_hi);
-                    startInBuffer.Add(_buffer.Length);
-                }
-
-                int start = startInBuffer[ix - x_start];
-                var neighborlist_range = new BufferRange
-                {
-                    start = start,
-                    length = _buffer.Length - start
-                };
-                _bufferIndex.Add(neighborlist_range);
-            }
-
-            //--- add deference part
-            for (int ix = x_start + 1; ix < x_end; ix++)
-            {
-                var index_cell = new PosIndex(ix, iy, iz);
-                var neighbor_lo = index_cell - _info.Target->indexRange;
-                var neighbor_hi = index_cell + _info.Target->indexRange;
-
-                WriteCached_YZ_PlaneIntoBuffer(neighbor_hi.ix, neighbor_lo, neighbor_hi);
-                startInBuffer.Add(_buffer.Length);
-
-                int start = startInBuffer[ix - x_start];
-                var neighborlist_range = new BufferRange
-                {
-                    start = start,
-                    length = _buffer.Length - start
-                };
-                _bufferIndex.Add(neighborlist_range);
-            }
-
-            startInBuffer.Dispose();
-        }
-        private void WriteCached_YZ_PlaneIntoBuffer(int i_nx, PosIndex neighbor_lo, PosIndex neighbor_hi)
-        {
-            for (int i_ny = neighbor_lo.iy; i_ny <= neighbor_hi.iy; i_ny++)
-            {
-                for (int i_nz = neighbor_lo.iz; i_nz <= neighbor_hi.iz; i_nz++)
-                {
-                    int i_cache = i_nx
-                                + i_ny * _info.Target->cacheGrid.ix
-                                + i_nz * _info.Target->cacheGrid.ix * _info.Target->cacheGrid.iy;
-
-                    var range = _bufferIndex[i_cache];
-                    DomesticAppend(_buffer, range.start, range.length);
-                }
-            }
-        }
-        private static unsafe void DomesticAppend(NativeList<T> buffer, int start, int length)
-        {
-            if (buffer.Length < start + length)
-                throw new ArgumentOutOfRangeException($"range[{start}, {start + length}) is out of buffer length = {buffer.Length}");
-
-            var part = buffer.AsArray().GetSubArray(start, length);
-            buffer.AddRange(part);
-        }
-
         private static int GetLocalIndex(PosIndex index, MergedPosIndex area)
         {
             int x_stride = area.Hi.ix - area.Lo.ix;
@@ -355,34 +221,21 @@ namespace HashCellIndex
         public static void CalcCapacity(MergedPosIndex target, PosIndex searchRange, int listCapacityPerCell,
                                         out int n_index, out int buffer_capacity)
         {
-            //--- for optimized version (use cache data and compress neighborlist)
-            //CalcCapacityForCompressedNeighborList(target, searchRange, listCapacityPerCell, out n_index, out buffer_capacity);
+            //--- for optimized version (compress neighborlist)
+            CalcCapacityForCompressedNeighborList(target, searchRange, listCapacityPerCell, out n_index, out buffer_capacity);
 
             //--- for naive version
-            CalcCapacityForNaive(target, searchRange, listCapacityPerCell, out n_index, out buffer_capacity);
+            //CalcCapacityForNaive(target, searchRange, listCapacityPerCell, out n_index, out buffer_capacity);
         }
         private static void CalcCapacityForCompressedNeighborList(in MergedPosIndex target, in PosIndex searchRange, int listCapacityPerCell,
                                                                   out int n_index, out int buffer_capacity)
         {
             int n_cell = target.Length;
             var merge_size = target.Hi - target.Lo;
-            var cache_size = merge_size + (searchRange * 2);
-            var neighbor_size = new PosIndex(1, 1, 1) + (searchRange * 2);
-            int n_cache = cache_size.ix * cache_size.iy * cache_size.iz;
-            var cache_neighbor_ratio = new float3
-            {
-                x = (float)cache_size.ix / neighbor_size.ix,
-                y = (float)cache_size.iy / neighbor_size.iy,
-                z = (float)cache_size.iz / neighbor_size.iz,
-            };
-
-            n_index = n_cache + n_cell * 2;
-            float cap = listCapacityPerCell
-                      * (cache_neighbor_ratio.x *
-                         cache_neighbor_ratio.y *
-                         cache_neighbor_ratio.z
-                         + merge_size.iy * merge_size.iz * cache_neighbor_ratio.x); // compress neighborlist for x axis
-            buffer_capacity = (int)cap + 1;
+            float cap = merge_size.iy * merge_size.iz
+                      * (float)(merge_size.ix + 2 * searchRange.ix) / (1 + 2 * searchRange.ix);
+            n_index = n_cell * 2;
+            buffer_capacity = (int)(listCapacityPerCell * cap) + 1;
         }
         private static void CalcCapacityForNaive(in MergedPosIndex target, in PosIndex searchRange, int listCapacityPerCell,
                                                  out int n_index, out int buffer_capacity)
@@ -411,30 +264,14 @@ namespace HashCellIndex
             var sb = new System.Text.StringBuilder();
 
             sb.Append($"LocalGrid={_info.Target->localGrid}\n");
-            if(_info.Target->cellsOffset > 0)
-            {
-                sb.Append($"CacheSize={_info.Target->cacheGrid}");
-                sb.Append($", InGlobalGrid: [{_info.Target->localGrid.Lo - _info.Target->indexRange}");
-                sb.Append($", {_info.Target->localGrid.Hi + _info.Target->indexRange})\n");
-            }
             sb.Append($"IndexRange={_info.Target->indexRange}\n");
-            sb.Append($"cells offset={_info.Target->cellsOffset}, neighbors offset={_info.Target->neighborsOffset}");
             sb.Append($", n_cell={_info.Target->n_cell}\n");
 
             sb.Append($"len buffer={_buffer.Length}\n");
             sb.Append($"len bufferIndex={_bufferIndex.Length}\n");
 
-            sb.Append($"\n  internal caches:\n");
-            for (int i = 0; i < _info.Target->cellsOffset; i++)
-            {
-                sb.Append($"  i={i}, range={_bufferIndex[i]}");
-                var range = _bufferIndex[i];
-                for (int j = range.start; j < range.end; j++) sb.Append($", {_buffer[j]}");
-                sb.Append("\n");
-            }
-
             sb.Append($"\n  ref to cells:\n");
-            for (int i = _info.Target->cellsOffset; i < _info.Target->neighborsOffset; i++)
+            for (int i = 0; i < _info.Target->n_cell; i++)
             {
                 sb.Append($"  i={i}, range={_bufferIndex[i]}");
                 var range = _bufferIndex[i];
@@ -442,12 +279,12 @@ namespace HashCellIndex
                 sb.Append("\n");
             }
 
-            if(_info.Target->neighborsOffset > 0)
+            if(_bufferIndex.Length > _info.Target->n_cell)
             {
                 sb.Append($"\n  ref to neighborlists:\n");
-                for (int i = _info.Target->neighborsOffset; i < _bufferIndex.Length; i++)
+                for (int i = _info.Target->n_cell; i < _bufferIndex.Length; i++)
                 {
-                    sb.Append($"  i={i - _info.Target->neighborsOffset}, range={_bufferIndex[i]}");
+                    sb.Append($"  i={i - _info.Target->n_cell}, range={_bufferIndex[i]}");
                     var range = _bufferIndex[i];
                     for (int j = range.start; j < range.end; j++) sb.Append($", {_buffer[j]}");
                     sb.Append("\n");
@@ -520,44 +357,16 @@ namespace HashCellIndex
                                                                ref MergedNeighborList<T> buffer)
         where T : unmanaged, IComponentData
         {
-            /*
-            //--- copy info
+            buffer.Clear();
             buffer._info.Value = merged_entities._info.Value;
 
-            //--- gather data into cache and build neighborlist
-
-            int cells_offset = merged_entities._info.Target->cellsOffset;
-            var last_cache_range = merged_entities._bufferIndex[cells_offset - 1];
-            int len_cache = last_cache_range.start + last_cache_range.length;
-
-            buffer._buffer.ResizeUninitialized(len_cache);
-            buffer._bufferIndex.Clear();
-            buffer._bufferIndex.AddRange(merged_entities._bufferIndex.GetUnsafePtr(),
-                                         merged_entities._info.Target->neighborsOffset);
-
-            //--- gather data into cache
-            for (int i = 0; i < len_cache; i++)
+            buffer._buffer.ResizeUninitialized(merged_entities._buffer.Length);
+            for (int i = 0; i < merged_entities._buffer.Length; i++)
             {
                 buffer._buffer[i] = data_from_entity[merged_entities._buffer[i]];
             }
 
-            //--- build neighborList from cache
-            buffer.BuildNeighborListFromCache();
-            */
-
-            //--- naive implementation
-            {
-                buffer.Clear();
-                buffer._info.Value = merged_entities._info.Value;
-
-                buffer._buffer.ResizeUninitialized(merged_entities._buffer.Length);
-                for (int i = 0; i < merged_entities._buffer.Length; i++)
-                {
-                    buffer._buffer[i] = data_from_entity[merged_entities._buffer[i]];
-                }
-
-                buffer._bufferIndex.AddRange(merged_entities._bufferIndex.GetUnsafePtr(), merged_entities._bufferIndex.Length);
-            }
+            buffer._bufferIndex.AddRange(merged_entities._bufferIndex.GetUnsafePtr(), merged_entities._bufferIndex.Length);
         }
 
         public static unsafe MergedCell<T> GatherComponentData<T>(ComponentDataFromEntity<T> data_from_entity,

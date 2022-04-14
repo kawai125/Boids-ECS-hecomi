@@ -1,3 +1,7 @@
+//#define HASH_CELL_INDEX_ENABLE_INTERNAL_CHECKER
+//#define HASH_CELL_INDEX_ENABLE_NAIVE_MERGED_NEIGHBORLIST
+//--- debug options
+
 using System;
 using System.Diagnostics;
 using UnityEngine;
@@ -9,7 +13,11 @@ using Unity.Mathematics;
 namespace HashCellIndex
 {
     public struct HashCellIndex<T> : IDisposable
+#if HASH_CELL_INDEX_ENABLE_INTERNAL_CHECKER
         where T : unmanaged, IEquatable<T>
+#else
+        where T : unmanaged
+#endif
     {
         internal PtrHandle<CellIndexInfo> _info;
         internal NativeMultiHashMap<PosIndex, T> _map;
@@ -403,12 +411,13 @@ namespace HashCellIndex
                                                          NativeMultiHashMap<PosIndex, T> map,
                                                          ref MergedNeighborList<T> mnl)
             {
-                //--- naive plan
-                //GetMergedNeighborListNaive(target, index_range, boundary, map, buffer);
-                //return;
-
                 mnl.Clear();
 
+#if HASH_CELL_INDEX_ENABLE_NAIVE_MERGED_NEIGHBORLIST
+                //--- naive plan
+                GetMergedNeighborListNaive(target, index_range, boundary, map, mnl);
+                return;
+#else
                 //--- direct loading with x-zxis compress neighborlist plan
                 mnl._info.Target->localGrid = target;
                 mnl._info.Target->indexRange = index_range;
@@ -438,7 +447,6 @@ namespace HashCellIndex
                 }
 
                 //------ load neighbors with x-zxis compress
-                mnl._info.Target->neighborsOffset = mnl._bufferIndex.Length;
                 var startInBuffer = new NativeList<int>(target.Hi.ix - target.Lo.ix + index_range.ix * 2, Allocator.Temp);
                 for (int iz = target.Lo.iz; iz < target.Hi.iz; iz++)
                 {
@@ -457,7 +465,10 @@ namespace HashCellIndex
 
                             for (int i_nx = neighbor_lo.ix; i_nx <= neighbor_hi.ix; i_nx++)
                             {
-                                LoadNeighbors_YZ_Plane(i_nx, neighbor_lo, neighbor_hi, map, ref mnl._buffer);
+                                int ix_cell = GetPeriodicIndex(i_nx, GridSize.ix, boundary.IsMatch(Boundary.Periodic_X),
+                                                               neighbor_lo.ix, neighbor_hi.ix);
+
+                                LoadNeighbors_YZ_Plane(ix_cell, GridSize, boundary, neighbor_lo, neighbor_hi, map, ref mnl._buffer);
                                 startInBuffer.Add(mnl._buffer.Length);
                             }
 
@@ -472,7 +483,10 @@ namespace HashCellIndex
                             var neighbor_lo = index_cell - index_range;
                             var neighbor_hi = index_cell + index_range;
 
-                            LoadNeighbors_YZ_Plane(neighbor_hi.ix, neighbor_lo, neighbor_hi, map, ref mnl._buffer);
+                            int ix_cell = GetPeriodicIndex(neighbor_hi.ix, GridSize.ix, boundary.IsMatch(Boundary.Periodic_X),
+                                                           neighbor_lo.ix, neighbor_hi.ix);
+
+                            LoadNeighbors_YZ_Plane(ix_cell, GridSize, boundary, neighbor_lo, neighbor_hi, map, ref mnl._buffer);
                             startInBuffer.Add(mnl._buffer.Length);
 
                             int b_start = startInBuffer[ix - target.Lo.ix];
@@ -481,61 +495,31 @@ namespace HashCellIndex
                     }
                 }
                 startInBuffer.Dispose();
+#endif
 
-                /*
-                //--- cache data and build neighborlist from cache plan
-                buffer.SetGridInfo(target, Hi - Lo, index_range);
-                int i_cache = 0;
-                for(int iz = Lo.iz; iz < Hi.iz; iz++)
-                {
-                    int i_nz = GetPeriodicIndex(iz, GridSize.iz, boundary.IsMatch(Boundary.Periodic_Z), Lo.iz, Hi.iz);
-                    for(int iy = Lo.iy; iy < Hi.iy; iy++)
-                    {
-                        int i_ny = GetPeriodicIndex(iy, GridSize.iy, boundary.IsMatch(Boundary.Periodic_Y), Lo.iy, Hi.iy);
-                        for (int ix = Lo.ix; ix < Hi.ix; ix++)
-                        {
-                            int i_nx = GetPeriodicIndex(ix, GridSize.ix, boundary.IsMatch(Boundary.Periodic_X), Lo.ix, Hi.ix);
-                            var index_cell = new PosIndex(i_nx, i_ny, i_nz);
-
-                            //--- read data into cache
-                            int start = buffer._buffer.Length;
-                            GetMappedData(index_cell, map, ref buffer._buffer);
-
-                            var range = new MergedNeighborList<T>.BufferRange
-                            {
-                                start = start,
-                                length = buffer._buffer.Length - start
-                            };
-                            buffer._bufferIndex[i_cache] = range;
-
-                            //--- record cells in merged area
-                            if (target.Contains(index_cell))
-                            {
-                                buffer._bufferIndex.Add(range);
-                            }
-
-                            i_cache++;
-                        }
-                    }
-                }
-                buffer.BuildNeighborListFromCache();
-                */
-
-                ////--- validate with naive implementation
-                //var ref_mnl = new MergedNeighborList<T>(Allocator.Temp);
-                //GetMergedNeighborListNaive(target, index_range, boundary, map, ref_mnl);
-                //ValidateMergedNeighborList(mnl, ref_mnl);
-                //ref_mnl.Dispose();
+#if HASH_CELL_INDEX_ENABLE_INTERNAL_CHECKER
+                //--- validate with naive implementation
+                var ref_mnl = new MergedNeighborList<T>(Allocator.Temp);
+                GetMergedNeighborListNaive(target, index_range, boundary, map, ref_mnl);
+                ValidateMergedNeighborList(mnl, ref_mnl);
+                ref_mnl.Dispose();
+#endif
             }
-            private static void LoadNeighbors_YZ_Plane(int i_nx, in PosIndex neighbor_lo, in PosIndex neighbor_hi,
+            private static void LoadNeighbors_YZ_Plane(int i_nx, in PosIndex gridSize, BoundaryCondition boundary,
+                                                       in PosIndex neighbor_lo, in PosIndex neighbor_hi,
                                                        NativeMultiHashMap<PosIndex, T> map,
                                                        ref NativeList<T> buffer)
             {
                 for (int i_ny = neighbor_lo.iy; i_ny <= neighbor_hi.iy; i_ny++)
                 {
+                    int iy_cell = GetPeriodicIndex(i_ny, gridSize.iy, boundary.IsMatch(Boundary.Periodic_Y),
+                                                   neighbor_lo.iy, neighbor_hi.iy);
                     for (int i_nz = neighbor_lo.iz; i_nz <= neighbor_hi.iz; i_nz++)
                     {
-                        var neighbor_cell = new PosIndex(i_nx, i_ny, i_nz);
+                        int iz_cell = GetPeriodicIndex(i_nz, gridSize.iz, boundary.IsMatch(Boundary.Periodic_Z),
+                                                       neighbor_lo.iz, neighbor_hi.iz);
+
+                        var neighbor_cell = new PosIndex(i_nx, iy_cell, iz_cell);
                         GetMappedData(neighbor_cell, map, ref buffer);
                     }
                 }
@@ -565,7 +549,6 @@ namespace HashCellIndex
                     ref_mnl._bufferIndex.Add(range);
                 }
 
-                ref_mnl._info.Target->neighborsOffset = ref_mnl._bufferIndex.Length;
                 for (int iz = target.Lo.iz; iz < target.Hi.iz; iz++)
                 {
                     for (int iy = target.Lo.iy; iy < target.Hi.iy; iy++)
@@ -588,8 +571,10 @@ namespace HashCellIndex
                     }
                 }
             }
-            private unsafe void ValidateMergedNeighborList(MergedNeighborList<T> buffer,
-                                                           MergedNeighborList<T> ref_mnl)
+
+#if HASH_CELL_INDEX_ENABLE_INTERNAL_CHECKER
+            private static unsafe void ValidateMergedNeighborList(MergedNeighborList<T> buffer,
+                                                                  MergedNeighborList<T> ref_mnl)
             {
                 bool is_valid = true;
                 var sb = new System.Text.StringBuilder();
@@ -619,7 +604,7 @@ namespace HashCellIndex
                         if (!tgt_cell.Contains(value))
                         {
                             is_valid = false;
-                            sb.Append($"  ref[{i}]={value} is not found in tgt_cell. in cache: {SearchTargetFromCache(buffer, value)}\n");
+                            sb.Append($"  ref[{i}]={value} is not found in tgt_cell.\n");
                         }
                     }
                     for (int i = 0; i < tgt_cell.Length; i++)
@@ -628,7 +613,7 @@ namespace HashCellIndex
                         if (!ref_cell.Contains(value))
                         {
                             is_valid = false;
-                            sb.Append($"  tgt[{i}]={value} is error. in cache: {SearchTargetFromCache(buffer, value)}\n");
+                            sb.Append($"  tgt[{i}]={value} is error.\n");
                         }
                     }
 
@@ -646,7 +631,7 @@ namespace HashCellIndex
                         if (!tgt_neighbors.Contains(value))
                         {
                             is_valid = false;
-                            sb.Append($"  ref[{i}]={value} is not found in tgt_neighbors. in cache: {SearchTargetFromCache(buffer, value)}\n");
+                            sb.Append($"  ref[{i}]={value} is not found in tgt_neighbors.\n");
                         }
                     }
                     for (int i = 0; i < tgt_neighbors.Length; i++)
@@ -655,7 +640,7 @@ namespace HashCellIndex
                         if (!ref_neighbors.Contains(value))
                         {
                             is_valid = false;
-                            sb.Append($"  tgt[{i}]={value} is error. in cache: {SearchTargetFromCache(buffer, value)}\n");
+                            sb.Append($"  tgt[{i}]={value} is error.\n");
                         }
                     }
                 }
@@ -674,38 +659,7 @@ namespace HashCellIndex
                     UnityEngine.Debug.Log(sb);
                 }
             }
-            private unsafe string SearchTargetFromCache(MergedNeighborList<T> buffer, T tgt)
-            {
-                var cacheGrid = buffer._info.Target->cacheGrid;
-                if (buffer._info.Target->cellsOffset <= 0 ||
-                    buffer._info.Target->cellsOffset != cacheGrid.ix * cacheGrid.iy * cacheGrid.iz)
-                    return "not found";
-
-                int i_cache = 0;
-                for (int iz = 0; iz < cacheGrid.iz; iz++)
-                {
-                    for (int iy = 0; iy < cacheGrid.iy; iy++)
-                    {
-                        for (int ix = 0; ix < cacheGrid.ix; ix++)
-                        {
-                            var range = buffer._bufferIndex[i_cache];
-                            for(int i_buffer = range.start; i_buffer < range.end; i_buffer++)
-                            {
-                                if (tgt.Equals(buffer._buffer[i_buffer]))
-                                {
-                                    var index = new PosIndex(ix, iy, iz);
-                                    var sb = new System.Text.StringBuilder();
-                                    sb.Append($"[i={i_cache}, cache index={index}");
-                                    sb.Append($" global index={index - buffer._info.Target->indexRange + buffer._info.Target->localGrid.Lo}");
-                                    return sb.ToString();
-                                }
-                            }
-                            i_cache++;
-                        }
-                    }
-                }
-                return "not found";
-            }
+#endif
             internal static void GetGridIndexListImpl(PosIndex gridSize,
                                                       NativeList<PosIndex> list)
             {
