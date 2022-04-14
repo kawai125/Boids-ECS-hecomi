@@ -401,13 +401,89 @@ namespace HashCellIndex
             public unsafe void GetMergedNeighborListImpl(MergedPosIndex target, PosIndex index_range,
                                                          BoundaryCondition boundary,
                                                          NativeMultiHashMap<PosIndex, T> map,
-                                                         ref MergedNeighborList<T> buffer)
+                                                         ref MergedNeighborList<T> mnl)
             {
-                buffer.Clear();
-                var Lo = target.Lo - index_range;
-                var Hi = target.Hi + index_range;
+                //--- naive plan
+                //GetMergedNeighborListNaive(target, index_range, boundary, map, buffer);
+                //return;
 
-                //--- cache cell data
+                mnl.Clear();
+
+                //--- direct loading with x-zxis compress neighborlist plan
+                mnl._info.Target->localGrid = target;
+                mnl._info.Target->indexRange = index_range;
+                mnl._info.Target->n_cell = target.Length;
+
+                //------ load cells
+                for(int iz = target.Lo.iz; iz < target.Hi.iz; iz++)
+                {
+                    for (int iy = target.Lo.iy; iy < target.Hi.iy; iy++)
+                    {
+                        for (int ix = target.Lo.ix; ix < target.Hi.ix; ix++)
+                        {
+                            var index_cell = new PosIndex(ix, iy, iz);
+
+                            //--- read data into cache
+                            int start = mnl._buffer.Length;
+                            GetMappedData(index_cell, map, ref mnl._buffer);
+
+                            var range = new MergedNeighborList<T>.BufferRange
+                            {
+                                start = start,
+                                length = mnl._buffer.Length - start
+                            };
+                            mnl._bufferIndex.Add(range);
+                        }
+                    }
+                }
+
+                //------ load neighbors with x-zxis compress
+                mnl._info.Target->neighborsOffset = mnl._bufferIndex.Length;
+                var startInBuffer = new NativeList<int>(target.Hi.ix - target.Lo.ix + index_range.ix * 2, Allocator.Temp);
+                for (int iz = target.Lo.iz; iz < target.Hi.iz; iz++)
+                {
+                    for (int iy = target.Lo.iy; iy < target.Hi.iy; iy++)
+                    {
+                        startInBuffer.Clear();
+                        startInBuffer.Add(mnl._buffer.Length);
+
+                        //--- first part
+                        {
+                            int ix = target.Lo.ix;
+
+                            var index_cell = new PosIndex(ix, iy, iz);
+                            var neighbor_lo = index_cell - index_range;
+                            var neighbor_hi = index_cell + index_range;
+
+                            for (int i_nx = neighbor_lo.ix; i_nx <= neighbor_hi.ix; i_nx++)
+                            {
+                                LoadNeighbors_YZ_Plane(i_nx, neighbor_lo, neighbor_hi, map, ref mnl._buffer);
+                                startInBuffer.Add(mnl._buffer.Length);
+                            }
+
+                            int b_start = startInBuffer[ix - target.Lo.ix];
+                            mnl.PushBackIndex(b_start);
+                        }
+
+                        //--- add difference part
+                        for (int ix = target.Lo.ix + 1; ix < target.Hi.ix; ix++)
+                        {
+                            var index_cell = new PosIndex(ix, iy, iz);
+                            var neighbor_lo = index_cell - index_range;
+                            var neighbor_hi = index_cell + index_range;
+
+                            LoadNeighbors_YZ_Plane(neighbor_hi.ix, neighbor_lo, neighbor_hi, map, ref mnl._buffer);
+                            startInBuffer.Add(mnl._buffer.Length);
+
+                            int b_start = startInBuffer[ix - target.Lo.ix];
+                            mnl.PushBackIndex(b_start);
+                        }
+                    }
+                }
+                startInBuffer.Dispose();
+
+                /*
+                //--- cache data and build neighborlist from cache plan
                 buffer.SetGridInfo(target, Hi - Lo, index_range);
                 int i_cache = 0;
                 for(int iz = Lo.iz; iz < Hi.iz; iz++)
@@ -442,12 +518,34 @@ namespace HashCellIndex
                         }
                     }
                 }
-
                 buffer.BuildNeighborListFromCache();
+                */
 
-
-                //--- validate with naive implementation
-                var ref_mnl = new MergedNeighborList<T>(buffer._bufferIndex.Capacity, buffer._buffer.Capacity, Allocator.Temp);
+                ////--- validate with naive implementation
+                //var ref_mnl = new MergedNeighborList<T>(Allocator.Temp);
+                //GetMergedNeighborListNaive(target, index_range, boundary, map, ref_mnl);
+                //ValidateMergedNeighborList(mnl, ref_mnl);
+                //ref_mnl.Dispose();
+            }
+            private static void LoadNeighbors_YZ_Plane(int i_nx, in PosIndex neighbor_lo, in PosIndex neighbor_hi,
+                                                       NativeMultiHashMap<PosIndex, T> map,
+                                                       ref NativeList<T> buffer)
+            {
+                for (int i_ny = neighbor_lo.iy; i_ny <= neighbor_hi.iy; i_ny++)
+                {
+                    for (int i_nz = neighbor_lo.iz; i_nz <= neighbor_hi.iz; i_nz++)
+                    {
+                        var neighbor_cell = new PosIndex(i_nx, i_ny, i_nz);
+                        GetMappedData(neighbor_cell, map, ref buffer);
+                    }
+                }
+            }
+            private unsafe void GetMergedNeighborListNaive(MergedPosIndex target,
+                                                           PosIndex index_range,
+                                                           BoundaryCondition boundary,
+                                                           NativeMultiHashMap<PosIndex, T> map,
+                                                           MergedNeighborList<T> ref_mnl)
+            {
                 ref_mnl._info.Target->localGrid = target;
                 ref_mnl._info.Target->indexRange = index_range;
                 ref_mnl._info.Target->n_cell = target.Length;
@@ -489,8 +587,6 @@ namespace HashCellIndex
                         }
                     }
                 }
-
-                ValidateMergedNeighborList(buffer, ref_mnl);
             }
             private unsafe void ValidateMergedNeighborList(MergedNeighborList<T> buffer,
                                                            MergedNeighborList<T> ref_mnl)
@@ -569,6 +665,13 @@ namespace HashCellIndex
                     sb.Append($"\nMergedNeighborList<T> target:\n{buffer}");
                     sb.Append($"\nMergedNeighborList<T> ref:\n{ref_mnl}");
                     throw new InvalidProgramException(sb.ToString());
+                }
+                else
+                {
+                    sb.Clear();
+                    sb.Append($"MergedCell={buffer._info.Target->localGrid}");
+                    sb.Append($": buffer compress={(float)buffer._buffer.Length / ref_mnl._buffer.Length}");
+                    UnityEngine.Debug.Log(sb);
                 }
             }
             private unsafe string SearchTargetFromCache(MergedNeighborList<T> buffer, T tgt)
@@ -763,7 +866,7 @@ namespace HashCellIndex
                 }
             }
 
-            [Conditional("UNITY_EDITOR")]
+            [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
             private static void CheckPos(Box box, float3 pos)
             {
                 if (!box.IsInside(pos))

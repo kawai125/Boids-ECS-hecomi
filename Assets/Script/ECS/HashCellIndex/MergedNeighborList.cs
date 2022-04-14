@@ -211,6 +211,14 @@ namespace HashCellIndex
         {
             Add((T*)source.GetUnsafePtr(), source.Length);
         }
+        internal void PushBackIndex(int start)
+        {
+            _bufferIndex.Add(new BufferRange { start = start, length = _buffer.Length - start });
+        }
+        internal void AddIndex(int start, int length)
+        {
+            _bufferIndex.Add(new BufferRange { start = start, length = length });
+        }
 
         internal void BuildNeighborListFromCache()
         {
@@ -232,60 +240,56 @@ namespace HashCellIndex
             {
                 for (int iy = internal_cell_lo.iy; iy < internal_cell_hi.iy; iy++)
                 {
-                    for (int ix = internal_cell_lo.ix; ix < internal_cell_hi.ix; ix++)
-                    {
-                        var index_cell = new PosIndex(ix, iy, iz);
-                        int b_start = _buffer.Length;
+                    BuildNeighborListImplWithCompressXAxis(iy, iz, internal_cell_lo.ix, internal_cell_hi.ix);
 
-                        var neighbor_lo = index_cell - _info.Target->indexRange;
-                        var neighbor_hi = index_cell + _info.Target->indexRange;
-
-                        for(int i_nx = neighbor_lo.ix; i_nx <= neighbor_hi.ix; i_nx++)
-                        {
-                            for (int i_ny = neighbor_lo.iy; i_ny <= neighbor_hi.iy; i_ny++)
-                            {
-                                for (int i_nz = neighbor_lo.iz; i_nz <= neighbor_hi.iz; i_nz++)
-                                {
-                                    int i_cache = i_nx
-                                                + i_ny * _info.Target->cacheGrid.ix
-                                                + i_nz * _info.Target->cacheGrid.iy * _info.Target->cacheGrid.ix;
-                                    var range = _bufferIndex[i_cache];
-                                    DomesticAppend(_buffer, range.start, range.length);
-                                }
-                            }
-                        }
-
-                        var list_range = new BufferRange
-                        {
-                            start = b_start,
-                            length = _buffer.Length - b_start,
-                        };
-                        _bufferIndex.Add(list_range);
-                    }
+                    //BuildNeighborListImplNaive(iy, iz, internal_cell_lo.ix, internal_cell_hi.ix);
                 }
             }
         }
-        private void BuildNeighborListWithCompressZAxis(int ix, int iy, int z_start, int z_end)
+        private void BuildNeighborListImplNaive(in int iy, in int iz, in int x_start, in int x_end)
         {
-            var startInBuffer = new NativeList<int>(z_end - z_start + _info.Target->indexRange.iz * 2, Allocator.Temp);
+            for (int ix = x_start; ix < x_end; ix++)
+            {
+                var index_cell = new PosIndex(ix, iy, iz);
+                int b_start = _buffer.Length;
+
+                var neighbor_lo = index_cell - _info.Target->indexRange;
+                var neighbor_hi = index_cell + _info.Target->indexRange;
+
+                for (int i_nx = neighbor_lo.ix; i_nx <= neighbor_hi.ix; i_nx++)
+                {
+                    WriteCached_YZ_PlaneIntoBuffer(i_nx, neighbor_lo, neighbor_hi);
+                }
+
+                var list_range = new BufferRange
+                {
+                    start = b_start,
+                    length = _buffer.Length - b_start,
+                };
+                _bufferIndex.Add(list_range);
+            }
+        }
+        private void BuildNeighborListImplWithCompressXAxis(in int iy, in int iz, in int x_start, in int x_end)
+        {
+            var startInBuffer = new NativeList<int>(x_end - x_start + _info.Target->indexRange.ix * 2, Allocator.Temp);
             startInBuffer.Add(_buffer.Length);
 
             //--- set first part
             {
-                int iz = z_start;
+                int ix = x_start;
 
                 var index_cell = new PosIndex(ix, iy, iz);
                 var neighbor_lo = index_cell - _info.Target->indexRange;
                 var neighbor_hi = index_cell + _info.Target->indexRange;
 
                 //--- record start point for dupricate with next
-                for (int i_nz = neighbor_lo.iz; i_nz <= neighbor_hi.iz; i_nz++)
+                for (int i_nx = neighbor_lo.ix; i_nx <= neighbor_hi.ix; i_nx++)
                 {
-                    WriteCached_XY_PlaneIntoBuffer(i_nz, neighbor_lo, neighbor_hi);
+                    WriteCached_YZ_PlaneIntoBuffer(i_nx, neighbor_lo, neighbor_hi);
                     startInBuffer.Add(_buffer.Length);
                 }
 
-                int start = startInBuffer[iz - z_start];
+                int start = startInBuffer[ix - x_start];
                 var neighborlist_range = new BufferRange
                 {
                     start = start,
@@ -295,16 +299,16 @@ namespace HashCellIndex
             }
 
             //--- add deference part
-            for (int iz = z_start + 1; iz < z_end; iz++)
+            for (int ix = x_start + 1; ix < x_end; ix++)
             {
                 var index_cell = new PosIndex(ix, iy, iz);
                 var neighbor_lo = index_cell - _info.Target->indexRange;
                 var neighbor_hi = index_cell + _info.Target->indexRange;
 
-                WriteCached_XY_PlaneIntoBuffer(neighbor_hi.iz, neighbor_lo, neighbor_hi);
+                WriteCached_YZ_PlaneIntoBuffer(neighbor_hi.ix, neighbor_lo, neighbor_hi);
                 startInBuffer.Add(_buffer.Length);
 
-                int start = startInBuffer[iz - z_start];
+                int start = startInBuffer[ix - x_start];
                 var neighborlist_range = new BufferRange
                 {
                     start = start,
@@ -315,11 +319,11 @@ namespace HashCellIndex
 
             startInBuffer.Dispose();
         }
-        private void WriteCached_XY_PlaneIntoBuffer(int i_nz, PosIndex neighbor_lo, PosIndex neighbor_hi)
+        private void WriteCached_YZ_PlaneIntoBuffer(int i_nx, PosIndex neighbor_lo, PosIndex neighbor_hi)
         {
             for (int i_ny = neighbor_lo.iy; i_ny <= neighbor_hi.iy; i_ny++)
             {
-                for (int i_nx = neighbor_lo.ix; i_nx <= neighbor_hi.ix; i_nx++)
+                for (int i_nz = neighbor_lo.iz; i_nz <= neighbor_hi.iz; i_nz++)
                 {
                     int i_cache = i_nx
                                 + i_ny * _info.Target->cacheGrid.ix
@@ -351,6 +355,15 @@ namespace HashCellIndex
         public static void CalcCapacity(MergedPosIndex target, PosIndex searchRange, int listCapacityPerCell,
                                         out int n_index, out int buffer_capacity)
         {
+            //--- for optimized version (use cache data and compress neighborlist)
+            //CalcCapacityForCompressedNeighborList(target, searchRange, listCapacityPerCell, out n_index, out buffer_capacity);
+
+            //--- for naive version
+            CalcCapacityForNaive(target, searchRange, listCapacityPerCell, out n_index, out buffer_capacity);
+        }
+        private static void CalcCapacityForCompressedNeighborList(in MergedPosIndex target, in PosIndex searchRange, int listCapacityPerCell,
+                                                                  out int n_index, out int buffer_capacity)
+        {
             int n_cell = target.Length;
             var merge_size = target.Hi - target.Lo;
             var cache_size = merge_size + (searchRange * 2);
@@ -370,6 +383,13 @@ namespace HashCellIndex
                          cache_neighbor_ratio.z
                          + merge_size.iy * merge_size.iz * cache_neighbor_ratio.x); // compress neighborlist for x axis
             buffer_capacity = (int)cap + 1;
+        }
+        private static void CalcCapacityForNaive(in MergedPosIndex target, in PosIndex searchRange, int listCapacityPerCell,
+                                                 out int n_index, out int buffer_capacity)
+        {
+            int n_cell = target.Length;
+            n_index = n_cell * 2;
+            buffer_capacity = listCapacityPerCell * (n_cell + 1);
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
@@ -521,10 +541,9 @@ namespace HashCellIndex
                 buffer._buffer[i] = data_from_entity[merged_entities._buffer[i]];
             }
 
-            //--- build neighborList part
+            //--- build neighborList from cache
             buffer.BuildNeighborListFromCache();
             */
-
 
             //--- naive implementation
             {

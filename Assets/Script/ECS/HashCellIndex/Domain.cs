@@ -214,11 +214,11 @@ namespace HashCellIndex
 
         public static PosIndex operator + (PosIndex lhs, PosIndex rhs)
         {
-            return new PosIndex(lhs.ix + rhs.ix, lhs.iy + rhs.iy, lhs.iz + rhs.iz);
+            return new PosIndex(lhs.index + rhs.index);
         }
         public static PosIndex operator - (PosIndex lhs, PosIndex rhs)
         {
-            return new PosIndex(lhs.ix - rhs.ix, lhs.iy - rhs.iy, lhs.iz - rhs.iz);
+            return new PosIndex(lhs.index - rhs.index);
         }
         public static PosIndex operator * (PosIndex lhs, int n)
         {
