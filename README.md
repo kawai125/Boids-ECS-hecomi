@@ -9,4 +9,5 @@
   - Entities 0.50.0.preview.24
 
 ## 実装に関するメモ
-[[Unity] 現在のECS環境でシンプルな Boids Simulation を書く](https://qiita.com/kawai125/items/69e7f4468f015de61556)
+[[Unity] Entities 0.50 環境で Boids Simulation を再設計した話](https://qiita.com/kawai125/items/6746e0590382d678041f)  
+[[Unity] DOTSを用いた空間分割アルゴリズムの比較](https://qiita.com/kawai125/items/99bb45165da4db34fb92)
